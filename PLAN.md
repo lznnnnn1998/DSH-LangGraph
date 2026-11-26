@@ -3,10 +3,11 @@
 Constraints: **no DSH source changes, no LangGraph source changes, no agent-loop
 replacement.** All work is a plugin change on this checkout.
 
-Current baseline at the time of writing:
+Current baseline:
 - GitHub `main` = `ea9bf42`; npm = `@lzn1998/dsh-langgraph@0.5.0`
-- `0.6.0` (system-prompt graph list) is implemented and tested locally, not committed
-- `dsh-store.js` is a local draft for `0.7.0`, not integrated
+- `0.6.0` system-prompt graph list is committed in `537292d` (21 tests pass)
+- this plan is committed in `d8ab90e`
+- `dsh-store.js` is an untracked draft for `0.7.0`, not integrated
 
 ## Per-version checklist
 For every version: implement → `npm test` → update docs/config → commit with author
