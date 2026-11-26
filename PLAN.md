@@ -3,9 +3,10 @@
 Constraints: **no DSH source changes, no LangGraph source changes, no agent-loop
 replacement.** All work is a plugin change on this checkout.
 
-Current baseline (all versions below committed locally; nothing pushed or published):
-- GitHub `main` = `ea9bf42`; npm = `@lzn1998/dsh-langgraph@0.5.0`
-- local HEAD = `a9ea4ef`; 51 tests pass; typecheck green
+Current release:
+- GitHub `main` = `25db4d5`; tag `v0.13.0`; npm = `@lzn1998/dsh-langgraph@0.13.0`
+- 51 tests pass; typecheck green; CI green on `25db4d5`
+- `0.6.0`–`0.13.0` are commits on `main`; `v0.13.0` tags the batch release
 - `0.6.0` system-prompt graph list is committed in `537292d` (21 tests pass)
 - this plan is committed in `d8ab90e`
 - `0.7.0` BaseStore is committed in `69051ac`
