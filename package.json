@@ -1,0 +1,58 @@
+{
+  "name": "@lzn1998/dsh-langgraph",
+  "version": "0.5.0",
+  "type": "module",
+  "description": "Durable LangGraph workflows as DSH tools: register TS/JS graphs, run and resume them across turns, run them as background jobs, delegate to DSH subagents, trace every node/tool/model call in Trajectory, and let graph nodes call this session's own tools.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lznnnnn1998/DSH-LangGraph.git"
+  },
+  "homepage": "https://github.com/lznnnnn1998/DSH-LangGraph#readme",
+  "bugs": {
+    "url": "https://github.com/lznnnnn1998/DSH-LangGraph/issues"
+  },
+  "license": "MIT",
+  "author": "lznnnnn1998",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "dsh-checkpointer.js",
+    "dsh-chat-model.js",
+    "dsh-tools.js",
+    "dsh-trace.js",
+    "graphs",
+    "locale",
+    "docs",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "dsh": ">=0.2.2-rc.5 <0.3.0",
+    "node": ">=24.9.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.5.1",
+    "@langchain/langgraph": "^1.7.5",
+    "@langchain/langgraph-checkpoint": "^1.2.3",
+    "zod": "^4.6.7"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

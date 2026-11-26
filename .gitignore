@@ -1,0 +1,17 @@
+# Local credentials — never commit
+.secrets/
+
+# Dependencies
+node_modules/
+
+# Local UI screenshots / session evidence
+preview/
+
+# Local Claude Code configuration
+.claude/
+
+# npm pack output
+*.tgz
+
+# OS / editor noise
+.DS_Store

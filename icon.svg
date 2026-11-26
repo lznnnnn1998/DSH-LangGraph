@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="LangGraph workflow">
+  <rect width="128" height="128" rx="28" fill="#0f172a"/>
+  <g stroke="#38bdf8" stroke-width="4" stroke-linecap="round" fill="none">
+    <path d="M34 40 L64 64 L34 88"/>
+    <path d="M64 64 L96 64"/>
+  </g>
+  <circle cx="34" cy="40" r="9" fill="#38bdf8"/>
+  <circle cx="34" cy="88" r="9" fill="#38bdf8"/>
+  <circle cx="64" cy="64" r="10" fill="#e2e8f0"/>
+  <circle cx="98" cy="64" r="9" fill="#38bdf8"/>
+</svg>

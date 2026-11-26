@@ -1,0 +1,11 @@
+# Registers the LangGraph workflow tools. Graphs live in the package's `graphs/`
+# directory; `config.graphs` adds more modules, `config.recursionLimit` bounds a run,
+# `config.model` overrides the route graph nodes use for model calls, `config.trace:
+# false` turns off the Trajectory sub-call trace, `config.background: false` hides
+# background runs, and `config.subagentProvider` selects the provider for
+# `helpers.subagent` (default `spawn`). Threads are checkpointed in the
+# `langgraph_checkpoints` storage domain.
+- insert:
+    - id: langgraph
+      name: '@lzn1998/dsh-langgraph'
+      config: {}
