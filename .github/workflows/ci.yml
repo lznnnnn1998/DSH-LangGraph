@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.22.3
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - run: npx -y -p typescript@5.9.0 tsc --noEmit --skipLibCheck --strict --target ES2022 --module NodeNext --moduleResolution NodeNext index.d.ts graphs/typed-report.ts
