@@ -47,6 +47,34 @@ export interface SubagentOptions {
   schema?: Record<string, unknown>
 }
 
+/** One selectable answer offered to the user. */
+export interface AskUserOption {
+  label: string
+  description?: string
+}
+
+/** One question for the native DSH question UI. */
+export interface AskUserQuestion {
+  /** Stable id, echoed in the answer; defaults to `q1`, `q2`, … */
+  id?: string
+  question: string
+  header?: string
+  options?: Array<string | AskUserOption>
+  multi_select?: boolean
+}
+
+/** The user's answer to one question; empty `selected` with no `custom` means skip. */
+export interface AskUserAnswer {
+  id: string
+  selected: string[]
+  custom?: string
+}
+
+/** The result of one `askUser` call. */
+export interface AskUserResult {
+  answers: AskUserAnswer[]
+}
+
 /** The result of one DSH subagent delegation. */
 export interface SubagentResult {
   /** Concatenated text blocks of the child's final output. */
@@ -86,6 +114,8 @@ export interface GraphHelpers {
   callModel(prompt: string, options?: CallModelOptions): Promise<{ text: string; usage?: unknown }>
   /** Run one DSH tool in the calling agent's scope and return its text content. */
   callTool(name: string, args?: Record<string, unknown>): Promise<string>
+  /** Ask the user through DSH's native question UI and wait for the answers. */
+  askUser(questions: AskUserQuestion[]): Promise<AskUserResult>
   /** Delegate one task to a DSH subagent and await its final output. */
   subagent(prompt: string, options?: SubagentOptions): Promise<SubagentResult>
   /** The run's LangGraph long-term store; undefined when `config.store` is false. */

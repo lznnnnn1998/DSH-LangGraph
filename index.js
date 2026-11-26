@@ -528,6 +528,60 @@ export function apply(ctx, config) {
         return text
       },
       /**
+       * Ask the user through DSH's native `ask_user_question` tool. The question
+       * renders in the stock question UI, so no client code is needed; the call
+       * blocks the node until the user answers (or the profile's wait times out).
+       * @param {Array<{ id?: string, question: string, header?: string, options?: Array<string | { label: string, description?: string }>, multi_select?: boolean }>} questions
+       *   one or more questions; a missing `id` becomes `q1`, `q2`, …
+       * @returns {Promise<{ answers: Array<{ id: string, selected: string[], custom?: string }> }>}
+       *   one answer per question; `selected: []` with no `custom` means the user skipped it.
+       */
+      async askUser(questions) {
+        if (!Array.isArray(questions) || questions.length === 0) {
+          throw new Error('askUser needs at least one question')
+        }
+        const normalized = questions.map((question, index) => {
+          if (question === null || typeof question !== 'object') {
+            throw new Error(`askUser: question ${index + 1} must be an object`)
+          }
+          if (typeof question.question !== 'string' || question.question.trim() === '') {
+            throw new Error(`askUser: question ${index + 1} needs a non-empty \`question\``)
+          }
+          const id = typeof question.id === 'string' && question.id !== '' ? question.id : `q${index + 1}`
+          const options = question.options === undefined ? undefined : question.options.map((option, optionIndex) => {
+            if (typeof option === 'string') return { label: option }
+            if (option === null || typeof option !== 'object' || typeof option.label !== 'string') {
+              throw new Error(`askUser: option ${optionIndex + 1} of question "${id}" needs a label`)
+            }
+            return { label: option.label, ...(option.description === undefined ? {} : { description: option.description }) }
+          })
+          return {
+            id,
+            question: question.question,
+            ...(question.header === undefined ? {} : { header: question.header }),
+            ...(options === undefined ? {} : { options }),
+            ...(question.multi_select === undefined ? {} : { multi_select: question.multi_select }),
+          }
+        })
+        const text = await helpersRef.callTool('ask_user_question', { questions: normalized })
+        let parsed
+        try {
+          parsed = JSON.parse(text)
+        } catch {
+          throw new Error(`askUser: unexpected answer format: ${text.slice(0, 500)}`)
+        }
+        if (!Array.isArray(parsed?.answers)) {
+          throw new Error(`askUser: unexpected answer format: ${text.slice(0, 500)}`)
+        }
+        return {
+          answers: parsed.answers.map(answer => ({
+            id: String(answer?.id ?? ''),
+            selected: Array.isArray(answer?.selected) ? answer.selected.map(String) : [],
+            ...(typeof answer?.custom === 'string' ? { custom: answer.custom } : {}),
+          })),
+        }
+      },
+      /**
        * Delegate one task to a DSH subagent from inside a graph node.
        *
        * The child is caller-delivered: it emits no parent completion notice, and

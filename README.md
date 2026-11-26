@@ -13,8 +13,9 @@ where it stopped.
   `history` lists checkpoints, `state` reads one by `checkpoint`, and `edit` forks a
   checkpoint with new values. Replay the fork with `langgraph_run({ graph, thread, checkpoint })`.
 - Registry: `graphs/*.js` (and `graphs/*.ts` on Node 24.22+) in this package plus `config.graphs`.
-- Node helpers: `helpers.callTool(name, args)` for DSH tools, `helpers.subagent(prompt, options)`
-  for a caller-delivered DSH child agent, `helpers.callModel(prompt, options)` for this
+- Node helpers: `helpers.callTool(name, args)` for DSH tools, `helpers.askUser(questions)`
+  for a question in DSH's native question UI, `helpers.subagent(prompt, options)` for a
+  caller-delivered DSH child agent, `helpers.callModel(prompt, options)` for this
   deployment's model, and `helpers.chatModel()` / `helpers.tools([...])` /
   `helpers.createReactAgent({...})` when you want LangGraph's prebuilt agent to drive DSH
   tools with the DSH model. Node-level calls keep the agent's sandbox and approval scope.

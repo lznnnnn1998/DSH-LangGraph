@@ -18,6 +18,8 @@ Run a LangGraph graph from inside a DSH agent session, and continue it later.
 - **Long-term memory.** Graphs also get a LangGraph `BaseStore`, durable in the
   `langgraph_store` domain: nodes use LangGraph's own `getStore(config)`, `build(api)`
   sees `api.store`, and `helpers.store()` returns the same instance.
+- **Native HITL.** `helpers.askUser(questions)` puts a question in DSH's stock question
+  UI and returns the answer to the node; no custom client is involved.
 - **Background runs.** `run_in_background: true` registers the run on `ctx.jobs` and returns
   `{ kind: "background", jobId, thread }` immediately. The model reads progress and the final
   value with `job_output`, and stops it with `job_kill`; the graph keeps its thread and its
@@ -212,6 +214,33 @@ return { summary: result.text, stopReason: result.stopReason }
   does not wait for the child, and the parent later receives a completion notice. Use
   `helpers.subagent` when the graph needs the child's result to continue.
 
+## Asking the user
+
+A node can ask a question through the same tool the model uses:
+
+```js
+const { answers } = await helpers.askUser([
+  { id: 'ship', question: 'Ship it?', options: ['Yes', 'No'] },
+  { id: 'note', question: 'Anything to add?', header: 'Optional' },
+])
+const ship = answers.find(answer => answer.id === 'ship')
+```
+
+- DSH's stock `ask_user_question` tool renders the question, so the native question card
+  (options, free text, skip) is the whole UI. The helper normalizes short strings into
+  `{ label }` options and defaults a missing `id` to `q1`, `q2`, ….
+- The result is `{ answers: [{ id, selected, custom? }] }`. For a single-select question
+  `custom` overrides `selected`; `selected: []` with no `custom` means the user skipped it
+  — continue without that answer and do not treat the skip as permission.
+- The node waits for the answer. A profile without a question answerer fails with the
+  tool's error (`no user-questions answerer accepted the request`), and headless runs may
+  wait until the profile's question wait releases the turn.
+- DSH rejects human interaction from subagent-origin sessions. Run the graph from a
+  top-level session when it needs to ask; a graph started inside a child agent should
+  return the question as its result instead.
+- The ask is a normal tool call in this session and is traced as
+  `langgraph:tool ask_user_question` under the node.
+
 ## Writing a graph (TypeScript or JavaScript)
 
 ```ts
@@ -320,11 +349,11 @@ Long-term memories live in `langgraph_store` (table `items`).
 - A subagent child has its own Session and tool scope. Its own tool/model activity is not in
   the parent graph's model context; it may message the parent through tools the profile grants
   (`send_message`), and it remains in the parent's subagent catalog after disposal.
-- Six example graphs ship in `graphs/`: `scan-report` (tool only), `typed-report`
+- Seven example graphs ship in `graphs/`: `scan-report` (tool only), `typed-report`
   (TypeScript, tool only), `ask-workspace` (tool plus one model call), `ask-tools`
   (LangGraph's prebuilt ReAct agent over DSH tools and the DSH model), `ask-subagent`
-  (caller-delivered DSH child), and `approval-gate` (an `interrupt()` that waits for a
-  decision before it scans).
+  (caller-delivered DSH child), `ask-user` (native question UI), and `approval-gate`
+  (an `interrupt()` that waits for a decision before it scans).
 - LangGraph only accepts tools that are LangChain Runnables, so `helpers.tools()` builds
   real `tool()` instances with a zod schema converted from the DSH tool's JSON schema; the
   original JSON schema is what the chat model sends to the provider.

@@ -9,7 +9,8 @@ Current baseline:
 - this plan is committed in `d8ab90e`
 - `0.7.0` BaseStore is committed in `69051ac`
 - `0.8.0` time travel is committed in `2178ba4`
-- `0.9.0` retention is implemented (41 tests pass); commit pending
+- `0.9.0` retention is committed in `13e3203`
+- `0.10.0` askUser is implemented (44 tests pass); commit pending
 
 ## Per-version checklist
 For every version: implement → `npm test` → update docs/config → commit with author
@@ -49,10 +50,12 @@ explicit request or at the end of the batch.
 - Lazy load: per-thread domains is a follow-up if retention is not enough; the domain
   open currently loads all records.
 
-## 0.10.0 — askUser HITL helper
-- `helpers.askUser(questions, options?)` calls `ask_user_question` through
-  `ctx.tools.execute`; native DSH question UI, no custom client.
-- Docs + example; headless cannot answer, verify in Web.
+## 0.10.0 — askUser HITL helper (DONE, commit pending)
+- `helpers.askUser(questions)` calls `ask_user_question` through `ctx.tools.execute`;
+  native DSH question UI, no custom client. Normalizes options/ids, parses the answer
+  batch, documents skip and subagent-origin restrictions.
+- Example graph `ask-user`; tests with a stubbed question tool.
+- Not yet verified in a live Web session (headless has no answerer).
 - Commit: `feat: add native HITL questions from graph nodes`.
 
 ## 0.11.0 — topology host action
