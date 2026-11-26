@@ -987,6 +987,48 @@ export function apply(ctx, config) {
       await withThreadLock(thread, () => store.forgetThreadRecords(thread))
       return { deleted: thread }
     }
+    if (action === 'topology') {
+      const id = typeof args?.graph === 'string' ? args.graph.trim() : ''
+      if (id === '') return { error: '`graph` is required to read a topology' }
+      const entry = registry.get(id)
+      if (entry === undefined) return { error: `unknown graph "${id}"` }
+      if (entry.error !== undefined) return { error: `graph "${id}" is unavailable: ${entry.error.message}` }
+      const { saver } = await ensureSaver()
+      const { store: graphStore } = await ensureGraphStore()
+      const helpers = createHelpers(exec, undefined, graphStore)
+      const compiled = await compile(entry, saver, helpers, graphStore)
+      if (typeof compiled.getGraph !== 'function' && typeof compiled.getGraphAsync !== 'function') {
+        return { error: `graph "${id}" does not expose a topology` }
+      }
+      const drawable = typeof compiled.getGraphAsync === 'function'
+        ? await compiled.getGraphAsync()
+        : compiled.getGraph()
+      // `Graph.toJSON()` yields arrays; the object form is keyed by node id.
+      const snapshot = typeof drawable?.toJSON === 'function' ? drawable.toJSON() : drawable
+      const rawNodes = Array.isArray(snapshot?.nodes)
+        ? snapshot.nodes
+        : Object.entries(snapshot?.nodes ?? {}).map(([nodeId, node]) => ({ id: nodeId, ...(node ?? {}) }))
+      const nodes = rawNodes.map(node => ({
+        id: node?.id,
+        ...(node?.type === undefined ? {} : { type: node.type }),
+        ...(typeof (node?.name ?? node?.data?.name) === 'string' ? { name: node.name ?? node.data.name } : {}),
+        ...(typeof (node?.description ?? node?.data?.description) === 'string'
+          ? { description: node.description ?? node.data.description }
+          : {}),
+      }))
+      const edges = (Array.isArray(snapshot?.edges) ? snapshot.edges : []).map(edge => ({
+        source: edge?.source,
+        target: edge?.target,
+        ...(edge?.conditional === true ? { conditional: true } : {}),
+      }))
+      return {
+        graph: id,
+        ...(entry.description === undefined ? {} : { description: entry.description }),
+        ...(entry.input === undefined ? {} : { input: toJsonSafe(entry.input) }),
+        nodes,
+        edges,
+      }
+    }
     if (action === 'state' || action === 'history' || action === 'edit') {
       const id = typeof args?.graph === 'string' ? args.graph.trim() : ''
       const thread = typeof args?.thread === 'string' ? args.thread.trim() : ''
@@ -1095,7 +1137,7 @@ export function apply(ctx, config) {
         interrupts: toJsonSafe(snapshot?.tasks?.flatMap(task => task.interrupts ?? []) ?? []),
       }
     }
-    return { error: `unknown action "${action}"; expected list, state, history, edit, or delete` }
+    return { error: `unknown action "${action}"; expected list, state, history, edit, topology, or delete` }
   }
 
   // --- model-facing guidance ----------------------------------------------------
@@ -1168,13 +1210,14 @@ export function apply(ctx, config) {
 
   ctx.effect(() => ctx.tools.register({
     name: THREADS_TOOL,
-    description: 'List, inspect, time-travel, or delete durable LangGraph threads. Threads of this session are '
-      + 'listed by default; `state` shows a thread\'s values and what it waits on; `history` lists checkpoints; '
-      + '`edit` forks a checkpoint with new values, then replay it with langgraph_run({ checkpoint }).',
+    description: 'List, inspect, time-travel, or delete durable LangGraph threads, or read a graph\'s topology. '
+      + 'Threads of this session are listed by default; `state` shows a thread\'s values and what it waits on; '
+      + '`history` lists checkpoints; `edit` forks a checkpoint with new values, then replay it with '
+      + 'langgraph_run({ checkpoint }); `topology` returns a graph\'s nodes and edges.',
     parameters: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['list', 'state', 'history', 'edit', 'delete'], description: 'Defaults to list.' },
+        action: { type: 'string', enum: ['list', 'state', 'history', 'edit', 'topology', 'delete'], description: 'Defaults to list.' },
         graph: { type: 'string', description: 'Graph id; required by state, history, and edit.' },
         thread: { type: 'string', description: 'Thread id; required by state, history, edit, and delete.' },
         checkpoint: { type: 'string', description: 'Checkpoint id for state, edit, or replay; defaults to the thread head.' },

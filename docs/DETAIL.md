@@ -6,8 +6,9 @@ Run a LangGraph graph from inside a DSH agent session, and continue it later.
 
 - `langgraph_run` — run a graph by id with an initial state. Omitting `graph` lists
   the registered graphs **with their input schemas**.
-- `langgraph_threads` — `list`, `state`, `history`, `edit`, and `delete` durable threads.
-  A checkpoint can be inspected, forked with new values, and replayed.
+- `langgraph_threads` — `list`, `state`, `history`, `edit`, `topology`, and `delete`.
+  A checkpoint can be inspected, forked with new values, and replayed; a graph's nodes
+  and edges are available as JSON for a client view.
 - **Durable threads.** Every superstep is checkpointed in a DSH storage domain
   (`langgraph_checkpoints`), so a thread survives the turn and the Host process. Pass
   `thread` back to continue it; a profile without `storageDomain` falls back to an
@@ -115,6 +116,28 @@ langgraph_run({ graph, thread, checkpoint })                    → replay from 
 - History is bounded by `retention` (default 200 checkpoints per thread); older
   checkpoints and their writes are pruned, so a checkpoint that is no longer in `history`
   cannot be replayed.
+
+## Topology
+
+`langgraph_threads({ action: 'topology', graph })` compiles the graph and returns its
+drawable structure without needing a thread:
+
+```json
+{
+  "graph": "scan-report",
+  "description": "…",
+  "input": { "type": "object", "…": "…" },
+  "nodes": [{ "id": "__start__", "type": "schema" }, { "id": "scan", "type": "runnable", "name": "scan" }],
+  "edges": [{ "source": "__start__", "target": "scan" }, { "source": "scan", "target": "__end__" }]
+}
+```
+
+- The response is plain JSON (`Graph.toJSON()`), safe to hand to a client panel; a
+  conditional edge carries `conditional: true`.
+- Compiling runs `build(api)`, so a graph module's build must stay side-effect free.
+- This is the host half of the client view; it works from the model-facing tool and from
+  any host code that can call the tool. A dedicated topology panel is a client change
+  outside this package's host-only scope.
 
 ## Trajectory trace
 

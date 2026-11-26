@@ -10,7 +10,8 @@ Current baseline:
 - `0.7.0` BaseStore is committed in `69051ac`
 - `0.8.0` time travel is committed in `2178ba4`
 - `0.9.0` retention is committed in `13e3203`
-- `0.10.0` askUser is implemented (44 tests pass); commit pending
+- `0.10.0` askUser is committed in `0f42f0a`
+- `0.11.0` topology is implemented (46 tests pass); commit pending
 
 ## Per-version checklist
 For every version: implement → `npm test` → update docs/config → commit with author
@@ -58,10 +59,11 @@ explicit request or at the end of the batch.
 - Not yet verified in a live Web session (headless has no answerer).
 - Commit: `feat: add native HITL questions from graph nodes`.
 
-## 0.11.0 — topology host action
+## 0.11.0 — topology host action (DONE, commit pending)
 - `langgraph_threads({ action: 'topology', graph })` compiles the graph and returns
-  `getGraph()` as JSON-safe nodes/edges.
+  `Graph.toJSON()` as JSON-safe nodes/edges (conditional edges flagged).
 - This is the host half; a client panel is 0.13.0.
+- Tests: node/edge shape, conditional edges, unknown graph.
 - Commit: `feat: expose graph topology for clients`.
 
 ## 0.12.0 — ecosystem surface

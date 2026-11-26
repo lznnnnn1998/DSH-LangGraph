@@ -9,9 +9,10 @@ where it stopped.
 - `langgraph_run` (`graph`, `input`, `thread`, `resume`, `maxSteps`, `run_in_background`;
   omit `graph` to list). A background run returns a DSH job id; read it with `job_output`
   and stop it with `job_kill`.
-- `langgraph_threads` (`action`: `list` | `state` | `history` | `edit` | `delete`).
+- `langgraph_threads` (`action`: `list` | `state` | `history` | `edit` | `topology` | `delete`).
   `history` lists checkpoints, `state` reads one by `checkpoint`, and `edit` forks a
   checkpoint with new values. Replay the fork with `langgraph_run({ graph, thread, checkpoint })`.
+  `topology` returns a graph's JSON-safe nodes and edges for a client view.
 - Registry: `graphs/*.js` (and `graphs/*.ts` on Node 24.22+) in this package plus `config.graphs`.
 - Node helpers: `helpers.callTool(name, args)` for DSH tools, `helpers.askUser(questions)`
   for a question in DSH's native question UI, `helpers.subagent(prompt, options)` for a
