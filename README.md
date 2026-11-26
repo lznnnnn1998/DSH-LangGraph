@@ -16,6 +16,9 @@ where it stopped.
   deployment's model, and `helpers.chatModel()` / `helpers.tools([...])` /
   `helpers.createReactAgent({...})` when you want LangGraph's prebuilt agent to drive DSH
   tools with the DSH model. Node-level calls keep the agent's sandbox and approval scope.
+- **Model-facing guidance:** while loaded, a system-prompt section lists the registered
+  graph ids and descriptions, so the model can choose `langgraph_run` without first listing.
+  `config.prompt: false` disables it.
 - **Trajectory trace:** each run shows up as one `langgraph_run` row; its graph nodes, DSH
   tool calls, and model calls appear as nested sub-calls in **Trajectory** — `langgraph:node`,
   `langgraph:tool`, `langgraph:model`, `langgraph:subagent`. The trace uses DSH's log-only

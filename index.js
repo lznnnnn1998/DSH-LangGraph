@@ -124,6 +124,44 @@ function describeInput(entry) {
 }
 
 /**
+ * Render the model-facing graph guidance. It is a system-prompt section rather
+ * than a second tool: the model should know which graphs exist before deciding
+ * to call `langgraph_run`. Input schemas stay out of the prompt; the tool's
+ * no-argument listing returns them on demand.
+ * @param {Map<string, object>} registry - graph registry.
+ * @param {boolean} ready - whether the initial registry scan has completed.
+ * @returns {string} section text.
+ */
+export function renderGraphPrompt(registry, ready) {
+  const intro = 'LangGraph workflows are available through the `langgraph_run` tool.'
+  if (!ready) {
+    return `${intro} Call it with no \`graph\` to list the registered workflows and their input schemas.`
+  }
+  const available = [...registry.values()]
+    .filter(entry => entry.error === undefined)
+    .sort((left, right) => left.id.localeCompare(right.id))
+  if (available.length === 0) {
+    return `${intro}\n\nNo workflow is registered yet; call it with no \`graph\` to re-check.`
+  }
+  const limit = 24
+  const lines = available.slice(0, limit).map(entry => {
+    const description = typeof entry.description === 'string' ? entry.description.replace(/\s+/g, ' ').trim() : ''
+    return `- ${entry.id}${description === '' ? '' : `: ${description}`}`
+  })
+  if (available.length > limit) {
+    lines.push(`- … and ${available.length - limit} more; call \`langgraph_run\` with no graph for the full list.`)
+  }
+  return [
+    intro,
+    'Use it when a task benefits from durable multi-step execution, background runs, '
+      + 'interrupts/resume, or traced node/tool/model activity. '
+      + 'Use `langgraph_threads` to list, inspect, or delete durable threads.',
+    `Registered workflows:\n${lines.join('\n')}`,
+    'Omit `graph` to see each workflow\'s input schema.',
+  ].join('\n\n')
+}
+
+/**
  * Register the graph tools and the graph registry for one activation.
  * @param {import('@deepseek-ai/cordis').Context} ctx - the plugin's context.
  * @param {{ graphs?: { id?: string, module: string }[], recursionLimit?: number, model?: { provider?: string, model?: string, reasoningEffort?: string } }} [config]
@@ -136,6 +174,7 @@ export function apply(ctx, config) {
   const recursionLimit = Number.isInteger(config?.recursionLimit) ? config.recursionLimit : DEFAULT_RECURSION_LIMIT
   const configuredModel = config?.model ?? {}
   const traceEnabled = config?.trace !== false
+  const promptEnabled = config?.prompt !== false
   const backgroundEnabled = config?.background !== false
   const configuredSubagentProvider = typeof config?.subagentProvider === 'string' && config.subagentProvider !== ''
     ? config.subagentProvider
@@ -826,6 +865,34 @@ export function apply(ctx, config) {
       }
     }
     return { error: `unknown action "${action}"; expected list, state, or delete` }
+  }
+
+  // --- model-facing guidance ----------------------------------------------------
+  // A system-prompt section, not another tool: the model should know which
+  // graphs exist before it decides to call `langgraph_run`. The section is
+  // effect-owned and retires with this plugin; no DSH source is touched.
+  if (promptEnabled) {
+    const systemPrompt = ctx.get('systemPrompt')
+    if (systemPrompt !== undefined) {
+      let scannedReady = false
+      void scan().then(() => { scannedReady = true }).catch(error => {
+        ctx.logger?.warn(`langgraph: graph scan failed: ${error?.message ?? error}`)
+      })
+      let order = 2600
+      try {
+        if (typeof systemPrompt.getSectionOrder === 'function') {
+          order = systemPrompt.getSectionOrder('TOOL_WORKFLOW')
+        }
+      } catch {
+        // A future DSH may rename the order; 2600 is the tool-guidance band.
+      }
+      ctx.effect(() => systemPrompt.section({
+        name: 'tool:langgraph',
+        order,
+        text: () => renderGraphPrompt(registry, scannedReady),
+        retirement: 'The langgraph_run workflow guidance no longer applies.',
+      }), 'langgraph: prompt section')
+    }
   }
 
   ctx.effect(() => ctx.tools.register({

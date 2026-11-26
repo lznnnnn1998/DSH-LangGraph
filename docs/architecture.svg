@@ -4,7 +4,7 @@
 <marker id="dot" viewBox="0 0 6 6" refX="1" refY="3" markerWidth="5" markerHeight="5"><circle cx="3" cy="3" r="2.5" fill="#94a3b8"/></marker>
 </defs>
 <rect width="1240" height="1010" fill="#ffffff"/>
-<text x="60" y="46" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="700" fill="#0f172a" text-anchor="start">dsh-langgraph v0.5 — 运行时架构</text>
+<text x="60" y="46" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif" font-size="21" font-weight="700" fill="#0f172a" text-anchor="start">dsh-langgraph v0.6 — 运行时架构</text>
 <text x="60" y="70" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif" font-size="12.5" font-weight="400" fill="#64748b" text-anchor="start">LangGraph 负责流程与状态契约，DSH 负责执行、鉴权、存储与审计</text>
 <rect x="790" y="52" width="12" height="12" rx="3" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>
 <text x="808" y="63" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif" font-size="12" font-weight="400" fill="#64748b" text-anchor="start">DSH</text>

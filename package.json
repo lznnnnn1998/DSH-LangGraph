@@ -1,8 +1,8 @@
 {
   "name": "@lzn1998/dsh-langgraph",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
-  "description": "Durable LangGraph workflows as DSH tools: register TS/JS graphs, run and resume them across turns, run them as background jobs, delegate to DSH subagents, trace every node/tool/model call in Trajectory, and let graph nodes call this session's own tools.",
+  "description": "Durable LangGraph workflows as DSH tools: register TS/JS graphs, advertise them in the system prompt, run and resume them across turns, run them as background jobs, delegate to DSH subagents, trace every node/tool/model call in Trajectory, and let graph nodes call this session's own tools.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lznnnnn1998/DSH-LangGraph.git"

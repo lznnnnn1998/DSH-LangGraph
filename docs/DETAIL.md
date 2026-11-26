@@ -35,6 +35,22 @@ Run a LangGraph graph from inside a DSH agent session, and continue it later.
   and `helpers.createReactAgent({...})` is LangGraph's prebuilt ReAct agent wired to both.
   `helpers.messages` re-exports the LangChain message classes.
 
+## Model-facing guidance
+
+While the plugin is active it registers a system-prompt section through DSH's public
+`ctx.systemPrompt.section` API — no DSH source change. The section names `langgraph_run`,
+says when to prefer it, and lists the registered graph ids with their one-line descriptions
+(up to 24; input schemas stay out of the prompt). The model therefore knows what exists
+without spending a discovery call; `langgraph_run` with no `graph` still returns the full
+list and input schemas.
+
+- The registry is scanned when the plugin activates, so graph modules should keep top-level
+  code side-effect free.
+- The section text is a function: after the asynchronous scan completes, the next prompt
+  assembly replaces the short "call it to list" hint with the actual graph list.
+- `config.prompt: false` disables the section (and the eager scan).
+- The section is effect-owned: unloading the plugin retires the guidance.
+
 ## Trajectory trace
 
 A run is not a black box. The `langgraph_run` row in **Trajectory** expands into the
@@ -184,6 +200,7 @@ An interrupt gate:
 | `recursionLimit` | default LangGraph superstep bound per run (default 25) |
 | `model` | `{ provider, model, reasoningEffort }` used by `helpers.callModel`; defaults to the profile's selection |
 | `trace` | log node/tool/model activity as Trajectory sub-calls (default `true`; `false` disables it) |
+| `prompt` | register the model-facing system-prompt guidance with the graph list (default `true`) |
 | `background` | expose `run_in_background` on `langgraph_run` (default `true`; `false` rejects the flag) |
 | `subagentProvider` | default provider for `helpers.subagent` (default `spawn`; a per-call `provider` overrides it) |
 
@@ -226,6 +243,9 @@ Threads live in the `langgraph_checkpoints` storage domain (tables `checkpoints`
   stay under the same Trajectory row while the session is live. If append fails — for example
   a profile without the PTC event vocabulary — tracing disables for that run and the job's
   output ring remains the progress record.
+- The system-prompt guidance is global to the profile while the plugin is active. An agent
+  whose tool policy hides `langgraph_run` still sees the section; use `config.prompt: false`
+  in a profile/preset that should not advertise graphs.
 - A subagent child has its own Session and tool scope. Its own tool/model activity is not in
   the parent graph's model context; it may message the parent through tools the profile grants
   (`send_message`), and it remains in the parent's subagent catalog after disposal.
