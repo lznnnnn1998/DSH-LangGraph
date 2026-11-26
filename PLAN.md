@@ -16,7 +16,8 @@ Current release:
 - `0.11.0` topology is committed in `e265e03`
 - `0.12.0` ecosystem docs are committed in `4d869ed`
 - `0.13.0` client panel is committed in `a9ea4ef` and verified in Web
-- `0.13.1` prompt distinction is implemented (53 tests pass); commit pending
+- `0.13.1` prompt distinction is committed (53 tests pass) and verified in Web:
+  “扫描一下这个目录里有多少 JS 文件” now lists graphs, then calls `scan-report`
 - `0.14.0` sandbox worker is deferred after checking the sandbox surface (see below)
 
 ## Per-version checklist
@@ -101,7 +102,9 @@ explicit request or at the end of the batch.
   match rule ("name or description match → call it; do not reimplement with
   bash/subagent"), and moved the section to `TOOL_SUBAGENT - 10`.
 - Tests: prompt text plus apply-level order/text (53 total).
-- Commit: `fix: distinguish LangGraph graphs from the workflow tool`.
+- Verified in Web: "扫描一下这个目录里有多少 JS 文件，看看多不多" called
+  `langgraph_run` with no graph (list), then `scan-report`, then one bash count.
+- Commit: `fix: distinguish LangGraph graphs from the workflow tool` (`d0b3269`).
 
 ## 0.14.0 — sandboxed graph worker (DEFERRED — not a small version)
 Checked against DSH 0.2.2-rc.5/0.2.3-alpha.2:
