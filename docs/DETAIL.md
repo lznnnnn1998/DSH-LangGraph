@@ -363,7 +363,12 @@ Long-term memories live in `langgraph_store` (table `items`).
 ## Limits
 
 - Graphs run in the Host process, not in a separate sandbox: a node's blast radius is
-  what its DSH tool calls are allowed to do.
+  what its DSH tool calls are allowed to do. DSH's `ctx.sandbox` confines shell and
+  filesystem execution, not JavaScript, so it is not an isolation boundary for a graph
+  module; the trust boundary is the graph author, like any installed plugin.
+- Process-isolating a graph would need remote checkpointer, store, model, tool, question,
+  subagent, and trace bridges over IPC. Until such a worker exists, the plugin does not
+  pretend to offer it.
 - Every stored checkpoint is loaded when the domain opens; loading is not lazy. History
   is bounded per thread and namespace by `retention` (default 200), so a completed
   thread cannot grow without bound; `retention: 0` keeps everything. Pruned checkpoints
