@@ -18,7 +18,8 @@ Current release:
 - `0.13.0` client panel is committed in `a9ea4ef` and verified in Web
 - `0.13.1` prompt distinction is committed (53 tests pass) and verified in Web:
   “扫描一下这个目录里有多少 JS 文件” now lists graphs, then calls `scan-report`
-- `1.0.0` context/prompt audit is implemented (53 tests pass); release pending
+- `1.0.0` is released (tag, npm)
+- `1.0.1` open-shape guidance and structural prompt tests are implemented; release pending
 - `0.14.0` sandbox worker is deferred after checking the sandbox surface (see below)
 
 ## Per-version checklist
@@ -123,6 +124,21 @@ explicit request or at the end of the batch.
   called `langgraph_run({ graph: 'scan-report' })`. The prompt section sits at 2790,
   after the `workflow` rule and before subagent guidance.
 - Release: pushed `main`, tagged `v1.0.0`, published `@lzn1998/dsh-langgraph@1.0.0`.
+
+## 1.0.1 — open shapes and structural tests
+- Added prose guidance for unregistered or still-unclear shapes: `langgraph_run` only
+  runs registered graphs and cannot define one; one-off work uses ordinary DSH tools,
+  ad-hoc fan-out uses `workflow`, and a reusable shape belongs in a profile graph module.
+  No concrete examples, so the model composes the shape.
+- Repo prompt tests now assert concepts and structure (name, requested output, thread vs
+  session, no invented ids) instead of full sentences. Detailed behavior tests live in a
+  private `/tmp` matrix, not the repo.
+- Private matrix (fresh Web sessions): explicit graph → `langgraph_run`; output match
+  (large/small) → `scan-report`; exact count → bash; subagent → `subagent`; background →
+  `langgraph_run` + `run_in_background` + `job_output`; thread history →
+  `langgraph_threads history`; workflow fan-out → `workflow`; ambiguous release shape →
+  no graph, ordinary tools.
+- 53 tests; typecheck green. Release pending.
 
 ## 0.14.0 — sandboxed graph worker (DEFERRED — not a small version)
 Checked against DSH 0.2.2-rc.5/0.2.3-alpha.2:

@@ -64,6 +64,21 @@ The tool description covers mechanics (arguments, thread/resume/checkpoint, back
 job), not selection; the section covers selection, not mechanics. This split is the main
 rule for future edits.
 
+## Leaving the shape open
+
+The prompt does not prescribe a decision tree or concrete examples. It states the
+boundaries and the available moves:
+
+- a graph that is already registered and whose output matches → `langgraph_run`;
+- a one-off task, or a task whose shape is still unclear → ordinary DSH tools;
+- an ad-hoc fan-out whose shape is generated for this run → `workflow`;
+- a shape worth reusing → a profile graph module (authored outside this tool).
+
+`langgraph_run` cannot define a graph; the model is told not to invent an id. The only
+concrete list in the prompt is the registry itself — data the model must select from, not
+an example to copy. This is deliberate: the model should choose or compose the shape,
+not imitate a canned one.
+
 ## Boundaries with DSH's own context
 
 | DSH facility | Boundary |

@@ -58,6 +58,11 @@ returns the full list and input schemas.
 - The section sits just before the subagent guidance, after the `workflow` tool's
   "only when the user asks" rule. An earlier placement at `TOOL_WORKFLOW` made the two
   "workflow" instructions read as one.
+- The section also says that `langgraph_run` only runs registered graphs and cannot
+  define one: one-off or still-unclear work stays on ordinary DSH tools (or `workflow`
+  for an ad-hoc fan-out), and a reusable shape belongs in a profile graph module. It
+  gives no concrete examples for that choice, so the model composes the shape instead
+  of copying one.
 - Apart from the section and the two tool schemas, the plugin injects no runtime context;
   per-session thread facts are read on demand with `langgraph_threads`. See
   [CONTEXT.md](CONTEXT.md) for the mapping and the maintenance rules.

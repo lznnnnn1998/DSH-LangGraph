@@ -163,6 +163,10 @@ export function renderGraphPrompt(registry, ready) {
       + 'history or replay, a Trajectory sub-call record, or the graph description says it interrupts.',
     'When no graph\'s output matches, use ordinary DSH tools; do not wrap a single tool call in a graph '
       + 'just for ceremony, and do not use the `workflow` tool as a substitute for a named graph.',
+    '`langgraph_run` only runs graphs already registered with this profile; it cannot define a new one, '
+      + 'so do not invent an id. For one-off or still-unclear work, compose ordinary DSH tools (or use '
+      + '`workflow` for an ad-hoc fan-out). A shape worth reusing belongs in a profile graph module, '
+      + 'which then appears in this list.',
     'A LangGraph thread is a durable checkpoint chain for one graph run, not a DSH Session. '
       + 'Use `langgraph_threads` to list, inspect, time-travel, or delete threads, or read a graph\'s topology.',
     `Registered graphs:\n${lines.join('\n')}`,
