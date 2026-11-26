@@ -20,9 +20,10 @@ import { readdir } from 'node:fs/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import * as langgraph from '@langchain/langgraph'
 import { Command } from '@langchain/langgraph'
-import { MemorySaver } from '@langchain/langgraph-checkpoint'
+import { InMemoryStore, MemorySaver } from '@langchain/langgraph-checkpoint'
 import { DshChatModel, AIMessage, HumanMessage, SystemMessage, ToolMessage } from './dsh-chat-model.js'
 import { openCheckpointStore } from './dsh-checkpointer.js'
+import { openDshStore } from './dsh-store.js'
 import { createTracer } from './dsh-trace.js'
 import { langchainTool } from './dsh-tools.js'
 
@@ -164,10 +165,11 @@ export function renderGraphPrompt(registry, ready) {
 /**
  * Register the graph tools and the graph registry for one activation.
  * @param {import('@deepseek-ai/cordis').Context} ctx - the plugin's context.
- * @param {{ graphs?: { id?: string, module: string }[], recursionLimit?: number, model?: { provider?: string, model?: string, reasoningEffort?: string } }} [config]
- *   row config: extra graph modules, the default LangGraph recursion limit, and the
+ * @param {{ graphs?: { id?: string, module: string }[], recursionLimit?: number, model?: { provider?: string, model?: string, reasoningEffort?: string }, store?: boolean }} [config]
+ *   row config: extra graph modules, the default LangGraph recursion limit, the
  *   model route graph nodes use through `helpers.callModel` (defaults to this
- *   deployment's selected model).
+ *   deployment's selected model), and whether graphs get a long-term BaseStore
+ *   (`store: false` passes none).
  */
 export function apply(ctx, config) {
   const extra = Array.isArray(config?.graphs) ? config.graphs : []
@@ -176,6 +178,7 @@ export function apply(ctx, config) {
   const traceEnabled = config?.trace !== false
   const promptEnabled = config?.prompt !== false
   const backgroundEnabled = config?.background !== false
+  const storeEnabled = config?.store !== false
   const configuredSubagentProvider = typeof config?.subagentProvider === 'string' && config.subagentProvider !== ''
     ? config.subagentProvider
     : 'spawn'
@@ -189,10 +192,12 @@ export function apply(ctx, config) {
   // still gets working threads through `MemorySaver`, but they end with the process.
   let opened
   let openFailure
+  let openedGraphStore
   let disposed = false
   ctx.effect(() => () => {
     disposed = true
     if (opened !== undefined) void opened.close()
+    if (openedGraphStore !== undefined) void openedGraphStore.close()
   })
 
   /** @type {Promise<object | undefined> | undefined} */
@@ -232,6 +237,47 @@ export function apply(ctx, config) {
     if (store !== undefined) return { saver: store.saver, durable: true, store: store.saver }
     memorySaver ??= new MemorySaver()
     return { saver: memorySaver, durable: false, store: undefined }
+  }
+
+  // --- long-term store ----------------------------------------------------------
+  // The store is a second domain, opened lazily for the same reason. A profile
+  // without `storageDomain` gets an InMemoryStore, so a graph that uses memory
+  // still runs; only its memories end with the process.
+  /** @type {Promise<object | undefined> | undefined} */
+  let graphStorePromise
+  /** @type {import('@langchain/langgraph-checkpoint').InMemoryStore | undefined} */
+  let memoryGraphStore
+  let graphStoreFailure
+
+  /** Open the durable BaseStore once, or resolve undefined without a storage domain. */
+  function openGraphStore() {
+    graphStorePromise ??= (async () => {
+      const storageDomain = ctx.get('storageDomain')
+      if (storageDomain === undefined) return undefined
+      try {
+        const openedStore = await openDshStore(storageDomain)
+        if (disposed) {
+          await openedStore.close()
+          return undefined
+        }
+        openedGraphStore = openedStore
+        return openedStore.store
+      } catch (error) {
+        graphStoreFailure = error
+        ctx.logger?.warn(`langgraph: durable store unavailable, falling back to memory: ${error?.message ?? error}`)
+        return undefined
+      }
+    })()
+    return graphStorePromise
+  }
+
+  /** The BaseStore for one run plus whether it outlives the process. */
+  async function ensureGraphStore() {
+    if (!storeEnabled) return { store: undefined, durableStore: false }
+    const store = await openGraphStore()
+    if (store !== undefined) return { store, durableStore: true }
+    memoryGraphStore ??= new InMemoryStore()
+    return { store: memoryGraphStore, durableStore: false }
   }
 
   /**
@@ -331,13 +377,21 @@ export function apply(ctx, config) {
   }
 
   /** Helpers bound to one run: they close over the calling agent and its cancellation. */
-  function createHelpers(exec, tracer) {
+  function createHelpers(exec, tracer, store) {
     const agent = exec?.agent
     const signal = exec?.signal ?? new AbortController().signal
     const helpersRef = {
 
       agent,
       sessionId: agent?.id,
+      /**
+       * The LangGraph long-term store for this run. With a storage domain it is
+       * durable across turns and Host processes; otherwise it is an InMemoryStore.
+       * @returns {object | undefined} the BaseStore, or undefined when `config.store` is false.
+       */
+      store() {
+        return store
+      },
       /** LangChain message classes, so a graph module needs no LangChain dependency of its own. */
       messages: { AIMessage, HumanMessage, SystemMessage, ToolMessage },
       /**
@@ -585,15 +639,16 @@ export function apply(ctx, config) {
    * @param {{ build: (api: object) => object | Promise<object> }} entry - registry entry.
    * @param {object} saver - the checkpointer for this run.
    * @param {object} helpers - run helpers.
+   * @param {object | undefined} store - the BaseStore for this run.
    * @returns {Promise<object>} the compiled graph.
    */
-  async function compile(entry, saver, helpers) {
-    const built = await entry.build({ ...langgraph, helpers, checkpointer: saver })
+  async function compile(entry, saver, helpers, store) {
+    const built = await entry.build({ ...langgraph, helpers, checkpointer: saver, store })
     if (isCompiled(built)) return built
     if (typeof built?.compile !== 'function') {
       throw new Error(`graph "${entry.id}" build(api) must return a StateGraph or a compiled graph`)
     }
-    return built.compile({ checkpointer: saver })
+    return built.compile({ checkpointer: saver, ...(store === undefined ? {} : { store }) })
   }
 
   /** Bound one background job's model-facing result text. */
@@ -687,7 +742,7 @@ export function apply(ctx, config) {
    * @param {object} run - prepared run facts.
    * @returns {object} a background handle, or a model-facing error.
    */
-  function startBackgroundRun({ args, exec, entry, saver, durable, store, id, requestedThread, thread, sessionId }) {
+  function startBackgroundRun({ args, exec, entry, saver, durable, store, graphStore, id, requestedThread, thread, sessionId }) {
     const jobs = ctx.get('jobs')
     if (jobs === undefined) {
       return { error: 'background jobs are unavailable in this profile: load @deepseek-ai/dsh-jobs-local and @deepseek-ai/dsh-tool-jobs' }
@@ -713,10 +768,10 @@ export function apply(ctx, config) {
             // Progress is best-effort; the graph must not fail on a job write.
           }
         })
-        const helpers = createHelpers(runExec, tracer)
+        const helpers = createHelpers(runExec, tracer, graphStore)
         const done = (async () => {
           try {
-            const compiled = await compile(entry, saver, helpers)
+            const compiled = await compile(entry, saver, helpers, graphStore)
             const checkpointed = durable || compiled.checkpointer !== undefined
             if (requestedThread !== undefined && !checkpointed) {
               return { status: 'failed', detail: `graph "${id}" does not carry a checkpointer, so thread "${requestedThread}" cannot be continued` }
@@ -775,7 +830,8 @@ export function apply(ctx, config) {
       return { error: `graph "${id}" is unavailable: ${entry.error.message}` }
     }
 
-    const { saver, durable, store } = await ensureSaver()
+    const { saver, durable, store: checkpointStore } = await ensureSaver()
+    const { store: graphStore } = await ensureGraphStore()
     const sessionId = exec?.agent?.id
     const requestedThread = typeof args.thread === 'string' && args.thread.trim() !== '' ? args.thread.trim() : undefined
 
@@ -783,12 +839,12 @@ export function apply(ctx, config) {
       if (!backgroundEnabled) return { error: 'run_in_background is disabled for this plugin' }
       if (sessionId === undefined) return { error: 'background runs need a calling agent' }
       const thread = requestedThread ?? `lg_${id}_${Date.now().toString(36)}_${callSeq++}`
-      return startBackgroundRun({ args, exec, entry, saver, durable, store, id, requestedThread, thread, sessionId })
+      return startBackgroundRun({ args, exec, entry, saver, durable, store: checkpointStore, graphStore, id, requestedThread, thread, sessionId })
     }
 
     const tracer = createTracer(exec, id, traceEnabled)
-    const helpers = createHelpers(exec, tracer)
-    const compiled = await compile(entry, saver, helpers)
+    const helpers = createHelpers(exec, tracer, graphStore)
+    const compiled = await compile(entry, saver, helpers, graphStore)
     const checkpointed = durable || compiled.checkpointer !== undefined
     if (requestedThread !== undefined && !checkpointed) {
       return { error: `graph "${id}" does not carry a checkpointer, so thread "${requestedThread}" cannot be continued` }
@@ -796,12 +852,12 @@ export function apply(ctx, config) {
     const thread = checkpointed
       ? requestedThread ?? `lg_${id}_${Date.now().toString(36)}_${callSeq++}`
       : undefined
-    const conflict = thread === undefined ? undefined : threadConflict(store, thread, sessionId, id)
+    const conflict = thread === undefined ? undefined : threadConflict(checkpointStore, thread, sessionId, id)
     if (conflict !== undefined) return { error: conflict }
     return await executeRun({
       id,
       compiled,
-      store,
+      store: checkpointStore,
       thread,
       requestedThread,
       checkpointed,
@@ -850,8 +906,9 @@ export function apply(ctx, config) {
       const conflict = threadConflict(store, thread, sessionId, id)
       if (conflict !== undefined) return { error: conflict }
       const { saver } = await ensureSaver()
-      const helpers = createHelpers(exec)
-      const compiled = await compile(entry, saver, helpers)
+      const { store: graphStore } = await ensureGraphStore()
+      const helpers = createHelpers(exec, undefined, graphStore)
+      const compiled = await compile(entry, saver, helpers, graphStore)
       if (typeof compiled.getState !== 'function' || compiled.checkpointer === undefined) {
         return { error: `graph "${id}" does not carry a checkpointer` }
       }

@@ -16,6 +16,12 @@ where it stopped.
   deployment's model, and `helpers.chatModel()` / `helpers.tools([...])` /
   `helpers.createReactAgent({...})` when you want LangGraph's prebuilt agent to drive DSH
   tools with the DSH model. Node-level calls keep the agent's sandbox and approval scope.
+- **Long-term memory:** graphs get a real LangGraph `BaseStore` over the
+  `langgraph_store` storage domain. A node reads it with LangGraph's own
+  `getStore(config)`, `build(api)` sees `api.store`, and a helper is available as
+  `helpers.store()`. It supports get/put/delete, filtered pagination, and namespace
+  listing; vector `query` search is rejected rather than faked. Without a storage domain
+  it falls back to `InMemoryStore`; `config.store: false` passes no store at all.
 - **Model-facing guidance:** while loaded, a system-prompt section lists the registered
   graph ids and descriptions, so the model can choose `langgraph_run` without first listing.
   `config.prompt: false` disables it.

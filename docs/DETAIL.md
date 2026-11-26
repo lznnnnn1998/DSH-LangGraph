@@ -14,6 +14,9 @@ Run a LangGraph graph from inside a DSH agent session, and continue it later.
 - **Interrupts.** A node that calls LangGraph's `interrupt(...)` stops the run; the tool
   reports `status: "interrupted"` with the payload, and
   `langgraph_run({ graph, thread, resume: <value> })` resumes exactly there.
+- **Long-term memory.** Graphs also get a LangGraph `BaseStore`, durable in the
+  `langgraph_store` domain: nodes use LangGraph's own `getStore(config)`, `build(api)`
+  sees `api.store`, and `helpers.store()` returns the same instance.
 - **Background runs.** `run_in_background: true` registers the run on `ctx.jobs` and returns
   `{ kind: "background", jobId, thread }` immediately. The model reads progress and the final
   value with `job_output`, and stops it with `job_kill`; the graph keeps its thread and its
@@ -50,6 +53,39 @@ list and input schemas.
   assembly replaces the short "call it to list" hint with the actual graph list.
 - `config.prompt: false` disables the section (and the eager scan).
 - The section is effect-owned: unloading the plugin retires the guidance.
+
+## Long-term store
+
+Checkpoints belong to one thread; a store is shared memory. Every run is compiled with a
+LangGraph `BaseStore` that survives the turn and the Host process:
+
+```ts
+.addNode('remember', async (_state, config) => {
+  const store = getStore(config)              // LangGraph's standard accessor
+  await store.put(['memories', userId], 'preference', { tone: 'concise' })
+  return { preference: (await store.get(['memories', userId], 'preference')).value.tone }
+})
+```
+
+`build(api)` also receives `api.store`, and `helpers.store()` returns the same instance.
+Inside a node, `getStore(config)` is LangGraph's `AsyncBatchedStore` wrapper over that same
+`DshStore` (LangGraph batches node writes), so the wrapper is still backed by this domain.
+
+- Backed by the `langgraph_store` storage domain, one record per `(namespace, key)`;
+  writes resolve after the domain has accepted them.
+- Supports `get`, `put`, `delete`, `search({ filter, limit, offset })`, and
+  `listNamespaces({ prefix, suffix, maxDepth, limit, offset })`. Filters cover dotted
+  field paths and `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`; search results are newest
+  first (then by key).
+- Values must be JSON objects. Vector search (`search({ query })`) is rejected with a
+  clear error instead of returning unranked rows; use an embeddings-backed store when a
+  graph needs similarity.
+- Without a `storageDomain` service the plugin uses `InMemoryStore`, so the graph still
+  runs and only loses memories at process exit. `config.store: false` passes no store
+  (`getStore(config)` returns `undefined` and `helpers.store()` is `undefined`).
+- Long-term memory is separate from thread ownership: any run of any session sees the
+  same namespaces. Namespace the data yourself (for example by user or workspace) when
+  that matters.
 
 ## Trajectory trace
 
@@ -203,9 +239,11 @@ An interrupt gate:
 | `prompt` | register the model-facing system-prompt guidance with the graph list (default `true`) |
 | `background` | expose `run_in_background` on `langgraph_run` (default `true`; `false` rejects the flag) |
 | `subagentProvider` | default provider for `helpers.subagent` (default `spawn`; a per-call `provider` overrides it) |
+| `store` | give graphs the long-term `BaseStore` (default `true`; `false` passes none) |
 
 Threads live in the `langgraph_checkpoints` storage domain (tables `checkpoints`,
 `writes`, `threads`). `langgraph_threads({ action: 'delete', thread })` reclaims one.
+Long-term memories live in `langgraph_store` (table `items`).
 
 ## Limits
 
@@ -213,6 +251,8 @@ Threads live in the `langgraph_checkpoints` storage domain (tables `checkpoints`
   what its DSH tool calls are allowed to do.
 - Every checkpoint of every thread is loaded when the domain opens; there is no
   retention policy yet, so delete finished threads you no longer need.
+- The long-term store has no TTL or eviction: entries remain until the graph deletes
+  them. Vector search is not implemented, so `search({ query })` throws.
 - `langgraph_threads` lists the calling session's threads by default; `all: true` lists
   every session's.
 - What a graph inherits from the agent: **tools**, resolved in the calling agent's scope,

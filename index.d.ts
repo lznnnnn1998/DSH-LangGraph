@@ -11,8 +11,8 @@
  * export function build({ StateGraph, Annotation, START, END, helpers }: GraphApi) { ... }
  * ```
  */
-import { Annotation, END, START, StateGraph, interrupt } from '@langchain/langgraph'
-import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint'
+import { Annotation, END, START, StateGraph, getStore, interrupt } from '@langchain/langgraph'
+import type { BaseCheckpointSaver, BaseStore } from '@langchain/langgraph-checkpoint'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 
 /** Route options accepted by the model bridges. */
@@ -88,6 +88,8 @@ export interface GraphHelpers {
   callTool(name: string, args?: Record<string, unknown>): Promise<string>
   /** Delegate one task to a DSH subagent and await its final output. */
   subagent(prompt: string, options?: SubagentOptions): Promise<SubagentResult>
+  /** The run's LangGraph long-term store; undefined when `config.store` is false. */
+  store(): BaseStore | undefined
 }
 
 /** The API object passed to a graph module's `build(api)`. */
@@ -97,9 +99,13 @@ export interface GraphApi {
   readonly START: typeof START
   readonly END: typeof END
   readonly interrupt: typeof interrupt
+  /** LangGraph's config-scoped store accessor; nodes use `getStore(config)`. */
+  readonly getStore: typeof getStore
   readonly helpers: GraphHelpers
   /** The durable checkpointer the plugin compiles the graph with. */
   readonly checkpointer: BaseCheckpointSaver
+  /** The run's long-term store; undefined when `config.store` is false. */
+  readonly store: BaseStore | undefined
   readonly [key: string]: unknown
 }
 

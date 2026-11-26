@@ -3,9 +3,11 @@
 # `config.model` overrides the route graph nodes use for model calls, `config.trace:
 # false` turns off the Trajectory sub-call trace, `config.prompt: false` turns off
 # the model-facing system-prompt graph guidance, `config.background: false` hides
-# background runs, and `config.subagentProvider` selects the provider for
-# `helpers.subagent` (default `spawn`). Threads are checkpointed in the
-# `langgraph_checkpoints` storage domain.
+# background runs, `config.subagentProvider` selects the provider for
+# `helpers.subagent` (default `spawn`), and `config.store: false` passes no
+# long-term BaseStore to graphs. Threads are checkpointed in the
+# `langgraph_checkpoints` storage domain; long-term memories live in
+# `langgraph_store`.
 - insert:
     - id: langgraph
       name: '@lzn1998/dsh-langgraph'

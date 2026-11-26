@@ -7,7 +7,7 @@ Current baseline:
 - GitHub `main` = `ea9bf42`; npm = `@lzn1998/dsh-langgraph@0.5.0`
 - `0.6.0` system-prompt graph list is committed in `537292d` (21 tests pass)
 - this plan is committed in `d8ab90e`
-- `dsh-store.js` is an untracked draft for `0.7.0`, not integrated
+- `0.7.0` BaseStore is implemented (34 tests pass); commit pending
 
 ## Per-version checklist
 For every version: implement → `npm test` → update docs/config → commit with author
@@ -21,12 +21,13 @@ explicit request or at the end of the batch.
 - `config.prompt: false` disables it; eager scan for the list; 24-graph cap.
 - Tests: `test/prompt.test.js`; total 21 passing.
 
-## 0.7.0 — BaseStore / long-term memory
-- Finish `dsh-store.js`: `DshStore extends BaseStore` over `langgraph_store`
+## 0.7.0 — BaseStore / long-term memory (DONE, commit pending)
+- `dsh-store.js`: `DshStore extends BaseStore` over `langgraph_store`
   domain; get/put/delete, prefix search, filters, pagination, listNamespaces.
 - Vector search (`query`) explicitly rejects; embeddings are a later item.
-- `compile({ store })`, `api.store`, `helpers.store()`; fallback `InMemoryStore`.
-- Tests: store round-trip, delete, filter, pagination, namespaces.
+- `compile({ store })`, `api.store`, `helpers.store()`; fallback `InMemoryStore`;
+  `config.store: false` passes none.
+- Tests: store unit suite plus apply-level wiring (durable across runs, disabled path).
 - Commit: `feat: add durable LangGraph BaseStore`.
 
 ## 0.8.0 — time travel / state edit / replay
