@@ -4,9 +4,9 @@ Constraints: **no DSH source changes, no LangGraph source changes, no agent-loop
 replacement.** All work is a plugin change on this checkout.
 
 Current release:
-- GitHub `main` = `25db4d5`; tag `v0.13.0`; npm = `@lzn1998/dsh-langgraph@0.13.0`
-- 51 tests pass; typecheck green; CI green on `25db4d5`
-- `0.6.0`–`0.13.0` are commits on `main`; `v0.13.0` tags the batch release
+- GitHub `main` = `691c9b1`; tag `v1.0.0`; npm = `@lzn1998/dsh-langgraph@1.0.0`
+- 53 tests pass; typecheck green
+- `0.6.0`–`1.0.0` are commits on `main`; `v1.0.0` tags the release
 - `0.6.0` system-prompt graph list is committed in `537292d` (21 tests pass)
 - this plan is committed in `d8ab90e`
 - `0.7.0` BaseStore is committed in `69051ac`
@@ -122,7 +122,7 @@ explicit request or at the end of the batch.
   `scan-report` reports a verdict, not an exact count); “只要多还是少，不用精确数”
   called `langgraph_run({ graph: 'scan-report' })`. The prompt section sits at 2790,
   after the `workflow` rule and before subagent guidance.
-- Release: push `main`, tag `v1.0.0`, publish `@lzn1998/dsh-langgraph@1.0.0`.
+- Release: pushed `main`, tagged `v1.0.0`, published `@lzn1998/dsh-langgraph@1.0.0`.
 
 ## 0.14.0 — sandboxed graph worker (DEFERRED — not a small version)
 Checked against DSH 0.2.2-rc.5/0.2.3-alpha.2:
