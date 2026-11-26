@@ -8,7 +8,8 @@
 # long-term BaseStore to graphs. Threads are checkpointed in the
 # `langgraph_checkpoints` storage domain and keep `config.retention` checkpoints
 # each (default 200; 0 is unlimited); long-term memories live in
-# `langgraph_store`.
+# `langgraph_store`. In a Web profile `config.ui: false` also turns off the
+# panel's owner-only routes.
 - insert:
     - id: langgraph
       name: '@lzn1998/dsh-langgraph'

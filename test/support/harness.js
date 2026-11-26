@@ -51,17 +51,35 @@ export function createStorageDomain() {
 }
 
 /** A context with just the services `apply` touches. */
-export function createContext(storageDomain) {
+export function createContext(storageDomain, options = {}) {
   const tools = new Map()
   const disposers = []
+  const routes = new Map()
+  const connection = options.routes === true
+    ? {
+        fetch: {
+          register(definition) {
+            routes.set(definition.path, definition)
+            return () => routes.delete(definition.path)
+          },
+        },
+      }
+    : undefined
   const ctx = {
+    routes,
     effect(factory) {
       const disposer = factory()
       if (typeof disposer === 'function') disposers.push(disposer)
       return disposer
     },
+    inject(dependencies, callback) {
+      if (dependencies.includes('connection') && connection !== undefined) return callback(ctx)
+      return undefined
+    },
     get(service) {
-      return service === 'storageDomain' ? storageDomain : undefined
+      if (service === 'storageDomain') return storageDomain
+      if (service === 'connection') return connection
+      return undefined
     },
     logger: { warn() {} },
     tools: {

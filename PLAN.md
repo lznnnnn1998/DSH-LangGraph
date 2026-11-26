@@ -12,7 +12,8 @@ Current baseline:
 - `0.9.0` retention is committed in `13e3203`
 - `0.10.0` askUser is committed in `0f42f0a`
 - `0.11.0` topology is committed in `e265e03`
-- `0.12.0` ecosystem docs are written (46 tests pass); commit pending
+- `0.12.0` ecosystem docs are committed in `4d869ed`
+- `0.13.0` client panel is implemented and verified in Web (51 tests pass); commit pending
 
 ## Per-version checklist
 For every version: implement → `npm test` → update docs/config → commit with author
@@ -74,11 +75,17 @@ explicit request or at the end of the batch.
 - No new runtime: the existing helpers already cover the friction points.
 - Commit: `docs: document the LangChain ecosystem bridges`.
 
-## 0.13.0 — client UI (separate package)
-- Topology panel, token-level streaming, action-card HITL.
-- Requires a client bundle (`dsh.client.inject`, React/tsdown/slots); not a host-only
-  change. Build/test in its own package; no DSH source changes.
-- Commit: `feat: add langgraph client view`.
+## 0.13.0 — client view (DONE, commit pending)
+- Same package, second export: `dsh.client` + `lib/client.js` browser bundle; slots
+  `main` and `sidebar.panellist`; only React externals.
+- Panel lists registered graphs with thread counts and draws `Graph.toJSON()` topology;
+  host serves owner-only `GET /api/plugins/langgraph/ui` and `/topology` through
+  `ctx.connection.fetch.register`. `config.ui: false` disables both.
+- Verified in a real DSH 0.2.2-rc.5 Web session (sidebar row, 7 graphs, 17 threads,
+  approval-gate topology, no console errors).
+- Token-level streaming and action cards remain out of scope: streaming is not in the
+  tool protocol, and HITL uses the native question UI (0.10.0).
+- Commit: `feat: add the LangGraph Web panel`.
 
 ## 0.14.0 — sandboxed graph worker (separate architecture)
 - Run graph modules in a child process confined by `ctx.sandbox`; bridge

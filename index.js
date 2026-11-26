@@ -183,6 +183,7 @@ export function apply(ctx, config) {
   // Keep bounded thread history by default; 0 keeps every checkpoint, which a
   // graph that time-travels further back needs.
   const retention = Number.isInteger(config?.retention) && config.retention >= 0 ? config.retention : 200
+  const uiEnabled = config?.ui !== false
   const configuredSubagentProvider = typeof config?.subagentProvider === 'string' && config.subagentProvider !== ''
     ? config.subagentProvider
     : 'spawn'
@@ -709,6 +710,49 @@ export function apply(ctx, config) {
     return built.compile({ checkpointer: saver, ...(store === undefined ? {} : { store }) })
   }
 
+  /**
+   * Compile one graph and return its drawable topology, as plain JSON.
+   * @param {{ id: string }} entry - registry entry.
+   * @returns {Promise<object>} `{ graph, description?, input?, nodes, edges }`.
+   */
+  async function topologyOf(entry) {
+    const { saver } = await ensureSaver()
+    const { store: graphStore } = await ensureGraphStore()
+    const helpers = createHelpers(undefined, undefined, graphStore)
+    const compiled = await compile(entry, saver, helpers, graphStore)
+    if (typeof compiled.getGraph !== 'function' && typeof compiled.getGraphAsync !== 'function') {
+      throw new Error(`graph "${entry.id}" does not expose a topology`)
+    }
+    const drawable = typeof compiled.getGraphAsync === 'function'
+      ? await compiled.getGraphAsync()
+      : compiled.getGraph()
+    // `Graph.toJSON()` yields arrays; the object form is keyed by node id.
+    const snapshot = typeof drawable?.toJSON === 'function' ? drawable.toJSON() : drawable
+    const rawNodes = Array.isArray(snapshot?.nodes)
+      ? snapshot.nodes
+      : Object.entries(snapshot?.nodes ?? {}).map(([nodeId, node]) => ({ id: nodeId, ...(node ?? {}) }))
+    const nodes = rawNodes.map(node => ({
+      id: node?.id,
+      ...(node?.type === undefined ? {} : { type: node.type }),
+      ...(typeof (node?.name ?? node?.data?.name) === 'string' ? { name: node.name ?? node.data.name } : {}),
+      ...(typeof (node?.description ?? node?.data?.description) === 'string'
+        ? { description: node.description ?? node.data.description }
+        : {}),
+    }))
+    const edges = (Array.isArray(snapshot?.edges) ? snapshot.edges : []).map(edge => ({
+      source: edge?.source,
+      target: edge?.target,
+      ...(edge?.conditional === true ? { conditional: true } : {}),
+    }))
+    return {
+      graph: entry.id,
+      ...(entry.description === undefined ? {} : { description: entry.description }),
+      ...(entry.input === undefined ? {} : { input: toJsonSafe(entry.input) }),
+      nodes,
+      edges,
+    }
+  }
+
   /** Bound one background job's model-facing result text. */
   function renderJobResult(result) {
     let text
@@ -993,40 +1037,10 @@ export function apply(ctx, config) {
       const entry = registry.get(id)
       if (entry === undefined) return { error: `unknown graph "${id}"` }
       if (entry.error !== undefined) return { error: `graph "${id}" is unavailable: ${entry.error.message}` }
-      const { saver } = await ensureSaver()
-      const { store: graphStore } = await ensureGraphStore()
-      const helpers = createHelpers(exec, undefined, graphStore)
-      const compiled = await compile(entry, saver, helpers, graphStore)
-      if (typeof compiled.getGraph !== 'function' && typeof compiled.getGraphAsync !== 'function') {
-        return { error: `graph "${id}" does not expose a topology` }
-      }
-      const drawable = typeof compiled.getGraphAsync === 'function'
-        ? await compiled.getGraphAsync()
-        : compiled.getGraph()
-      // `Graph.toJSON()` yields arrays; the object form is keyed by node id.
-      const snapshot = typeof drawable?.toJSON === 'function' ? drawable.toJSON() : drawable
-      const rawNodes = Array.isArray(snapshot?.nodes)
-        ? snapshot.nodes
-        : Object.entries(snapshot?.nodes ?? {}).map(([nodeId, node]) => ({ id: nodeId, ...(node ?? {}) }))
-      const nodes = rawNodes.map(node => ({
-        id: node?.id,
-        ...(node?.type === undefined ? {} : { type: node.type }),
-        ...(typeof (node?.name ?? node?.data?.name) === 'string' ? { name: node.name ?? node.data.name } : {}),
-        ...(typeof (node?.description ?? node?.data?.description) === 'string'
-          ? { description: node.description ?? node.data.description }
-          : {}),
-      }))
-      const edges = (Array.isArray(snapshot?.edges) ? snapshot.edges : []).map(edge => ({
-        source: edge?.source,
-        target: edge?.target,
-        ...(edge?.conditional === true ? { conditional: true } : {}),
-      }))
-      return {
-        graph: id,
-        ...(entry.description === undefined ? {} : { description: entry.description }),
-        ...(entry.input === undefined ? {} : { input: toJsonSafe(entry.input) }),
-        nodes,
-        edges,
+      try {
+        return await topologyOf(entry)
+      } catch (error) {
+        return { error: error?.message ?? String(error) }
       }
     }
     if (action === 'state' || action === 'history' || action === 'edit') {
@@ -1235,4 +1249,67 @@ export function apply(ctx, config) {
     },
     execute: (args, exec) => manageThreads(args ?? {}, exec),
   }), 'langgraph: threads tool')
+
+  // --- owner UI routes ----------------------------------------------------------
+  // The optional client panel reads these authenticated, owner-only exact routes.
+  // A headless Host has no `connection` service, so nothing is served; no DSH
+  // source is touched. `config.ui: false` keeps the routes off in a Web profile.
+  if (uiEnabled && typeof ctx.inject === 'function') {
+    ctx.inject(['connection'], (scope) => {
+      const connection = scope.get('connection')
+      if (typeof connection?.fetch?.register !== 'function') return
+      const json = (value, status = 200) => new Response(JSON.stringify(value), {
+        status,
+        headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+      })
+      scope.effect(() => connection.fetch.register({
+        path: '/api/plugins/langgraph/ui',
+        methods: ['GET'],
+        requestBody: 'buffered',
+        fetch: async () => {
+          await scan()
+          const { store } = await ensureSaver()
+          const byGraph = {}
+          let total = 0
+          if (store !== undefined) {
+            for (const thread of store.listThreads({})) {
+              total += 1
+              const key = typeof thread.graph === 'string' ? thread.graph : '(unknown)'
+              byGraph[key] = (byGraph[key] ?? 0) + 1
+            }
+          }
+          return json({
+            graphs: [...registry.values()]
+              .sort((left, right) => left.id.localeCompare(right.id))
+              .map(entry => entry.error === undefined
+                ? {
+                    id: entry.id,
+                    ...(entry.description === undefined ? {} : { description: entry.description }),
+                    ...(entry.input === undefined ? {} : { input: toJsonSafe(entry.input) }),
+                  }
+                : { id: entry.id, error: entry.error.message }),
+            threads: { total, byGraph, durable: store !== undefined },
+          })
+        },
+      }), 'langgraph: ui route')
+      scope.effect(() => connection.fetch.register({
+        path: '/api/plugins/langgraph/topology',
+        methods: ['GET'],
+        requestBody: 'buffered',
+        fetch: async request => {
+          await scan()
+          const id = new URL(request.url).searchParams.get('graph') ?? ''
+          if (id === '') return json({ error: '`graph` query parameter is required' }, 400)
+          const entry = registry.get(id)
+          if (entry === undefined) return json({ error: `unknown graph "${id}"` }, 404)
+          if (entry.error !== undefined) return json({ error: `graph "${id}" is unavailable: ${entry.error.message}` }, 500)
+          try {
+            return json(await topologyOf(entry))
+          } catch (error) {
+            return json({ error: error?.message ?? String(error) }, 500)
+          }
+        },
+      }), 'langgraph: topology route')
+    })
+  }
 }

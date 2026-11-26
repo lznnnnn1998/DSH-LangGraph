@@ -21,6 +21,8 @@ Run a LangGraph graph from inside a DSH agent session, and continue it later.
   sees `api.store`, and `helpers.store()` returns the same instance.
 - **Native HITL.** `helpers.askUser(questions)` puts a question in DSH's stock question
   UI and returns the answer to the node; no custom client is involved.
+- **Web panel.** A sidebar **LangGraph** panel lists the registry and draws a graph's
+  topology; it reads the plugin's owner-only `/api/plugins/langgraph/*` routes.
 - **Background runs.** `run_in_background: true` registers the run on `ctx.jobs` and returns
   `{ kind: "background", jobId, thread }` immediately. The model reads progress and the final
   value with `job_output`, and stops it with `job_kill`; the graph keeps its thread and its
@@ -138,6 +140,36 @@ drawable structure without needing a thread:
 - This is the host half of the client view; it works from the model-facing tool and from
   any host code that can call the tool. A dedicated topology panel is a client change
   outside this package's host-only scope.
+
+## Web panel
+
+In a Web profile the package's `dsh.client` entry loads `lib/client.js`, a browser bundle
+that contributes a **LangGraph** sidebar row and a `main` panel. The panel shows:
+
+- the registered graphs with their descriptions and per-graph durable-thread counts;
+- the selected graph's topology from `Graph.toJSON()` — left-to-right columns, dashed
+  conditional edges, start/end nodes.
+
+It reads two exact, owner-only routes registered through the public
+`ctx.connection.fetch.register` service:
+
+| route | answer |
+|---|---|
+| `GET /api/plugins/langgraph/ui` | `{ graphs, threads: { total, byGraph, durable } }` |
+| `GET /api/plugins/langgraph/topology?graph=<id>` | the same payload as the `topology` action |
+
+- The routes are optional: a headless Host has no `connection` service, so they are not
+  registered. `config.ui: false` disables them in a Web profile too.
+- The panel is read-only and polls `/ui` every 5 seconds. It does not read Session logs,
+  thread contents, or tokens; run activity stays in Trajectory and `langgraph_threads`.
+- The bundle imports only `react` and `react/jsx-runtime`, which the Web shell seeds into
+  its module table. Rebuild it with the TypeScript compiler from a DSH checkout:
+
+  ```bash
+  DSH_TYPESCRIPT=/path/to/deepseek-harness/node_modules/typescript npm run build:client
+  ```
+
+  `lib/client.js` is committed, so installing from npm needs no build step.
 
 ## Trajectory trace
 
@@ -322,6 +354,7 @@ An interrupt gate:
 | `subagentProvider` | default provider for `helpers.subagent` (default `spawn`; a per-call `provider` overrides it) |
 | `store` | give graphs the long-term `BaseStore` (default `true`; `false` passes none) |
 | `retention` | checkpoints kept per thread and namespace (default `200`; `0` keeps every checkpoint) |
+| `ui` | serve the owner-only Web panel routes (default `true`; `false` registers none) |
 
 Threads live in the `langgraph_checkpoints` storage domain (tables `checkpoints`,
 `writes`, `threads`). `langgraph_threads({ action: 'delete', thread })` reclaims one.

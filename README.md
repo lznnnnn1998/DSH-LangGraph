@@ -39,6 +39,11 @@ where it stopped.
 - Threads are owned by the session and graph that created them; another session cannot
   resume or delete them. Each thread keeps at most `retention` checkpoints (default 200;
   `0` keeps every checkpoint), with their writes pruned alongside.
+- **Web panel:** in a Web profile the plugin contributes a **LangGraph** sidebar panel that
+  lists the registered workflows, their thread counts, and the selected graph's topology
+  (nodes, edges, conditional branches). It reads two owner-only `/api/plugins/langgraph/*`
+  routes; `config.ui: false` registers neither. Token-level streaming is not part of this
+  panel; runs stay visible in Trajectory.
 - See `docs/DETAIL.md` for the graph module contract, trace mapping, thread semantics, and limits.
 - See `docs/ECOSYSTEM.md` for adding LangChain packages, vector stores, prebuilt agents,
   LangSmith tracing, and streaming.

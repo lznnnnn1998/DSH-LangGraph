@@ -1,8 +1,8 @@
 {
   "name": "@lzn1998/dsh-langgraph",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "type": "module",
-  "description": "Durable LangGraph workflows as DSH tools: register TS/JS graphs, advertise them in the system prompt, run, resume and time-travel them, give them durable long-term memory, ask the user in the native question UI, run them as background jobs, delegate to DSH subagents, trace every node/tool/model call in Trajectory, and let graph nodes call this session's own tools.",
+  "description": "Durable LangGraph workflows as DSH tools: register TS/JS graphs, advertise them in the system prompt, run, resume and time-travel them, give them durable long-term memory, ask the user in the native question UI, run them as background jobs, delegate to DSH subagents, trace every node/tool/model call in Trajectory, draw their topology in a Web panel, and let graph nodes call this session's own tools.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lznnnnn1998/DSH-LangGraph.git"
@@ -19,6 +19,9 @@
       "types": "./index.d.ts",
       "default": "./index.js"
     },
+    "./client": {
+      "default": "./lib/client.js"
+    },
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
@@ -33,6 +36,9 @@
     "graphs",
     "locale",
     "docs",
+    "lib/client.js",
+    "client/index.tsx",
+    "scripts/build-client.mjs",
     "icon.svg",
     "cordis.patch.yml",
     "README.md",
@@ -43,7 +49,8 @@
     "node": ">=24.9.0"
   },
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "build:client": "node scripts/build-client.mjs"
   },
   "dependencies": {
     "@langchain/core": "^1.5.1",
@@ -54,6 +61,13 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
     }
   }
 }
