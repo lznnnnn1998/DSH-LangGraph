@@ -8,7 +8,8 @@ Current baseline:
 - `0.6.0` system-prompt graph list is committed in `537292d` (21 tests pass)
 - this plan is committed in `d8ab90e`
 - `0.7.0` BaseStore is committed in `69051ac`
-- `0.8.0` time travel is implemented (37 tests pass); commit pending
+- `0.8.0` time travel is committed in `2178ba4`
+- `0.9.0` retention is implemented (41 tests pass); commit pending
 
 ## Per-version checklist
 For every version: implement → `npm test` → update docs/config → commit with author
@@ -39,10 +40,11 @@ explicit request or at the end of the batch.
 - Tests: apply-level run → history → read checkpoint → edit → replay, plus errors.
 - Commit: `feat: add thread history, state edit and checkpoint replay`.
 
-## 0.9.0 — checkpoint retention
+## 0.9.0 — checkpoint retention (DONE, commit pending)
 - `retention` config (default 200, `0` unlimited); prune old checkpoints and writes
-  after each put; keep thread counters truthful.
-- Tests: put 5 with retention 2 → newest 2 remain; writes pruned.
+  after each put; thread counters reconciled to what is stored.
+- Tests: put 5 with retention 2 → newest 2 remain; writes pruned; per-thread isolation;
+  apply-level history capped.
 - Commit: `feat: bound checkpoint history per thread`.
 - Lazy load: per-thread domains is a follow-up if retention is not enough; the domain
   open currently loads all records.

@@ -6,7 +6,8 @@
 # background runs, `config.subagentProvider` selects the provider for
 # `helpers.subagent` (default `spawn`), and `config.store: false` passes no
 # long-term BaseStore to graphs. Threads are checkpointed in the
-# `langgraph_checkpoints` storage domain; long-term memories live in
+# `langgraph_checkpoints` storage domain and keep `config.retention` checkpoints
+# each (default 200; 0 is unlimited); long-term memories live in
 # `langgraph_store`.
 - insert:
     - id: langgraph

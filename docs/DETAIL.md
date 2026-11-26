@@ -110,6 +110,9 @@ langgraph_run({ graph, thread, checkpoint })                    → replay from 
 - An edit creates a fork: the original checkpoints stay, and the thread head becomes the
   fork when it is replayed. An unknown checkpoint id is rejected rather than treated as
   an empty state.
+- History is bounded by `retention` (default 200 checkpoints per thread); older
+  checkpoints and their writes are pruned, so a checkpoint that is no longer in `history`
+  cannot be replayed.
 
 ## Trajectory trace
 
@@ -264,6 +267,7 @@ An interrupt gate:
 | `background` | expose `run_in_background` on `langgraph_run` (default `true`; `false` rejects the flag) |
 | `subagentProvider` | default provider for `helpers.subagent` (default `spawn`; a per-call `provider` overrides it) |
 | `store` | give graphs the long-term `BaseStore` (default `true`; `false` passes none) |
+| `retention` | checkpoints kept per thread and namespace (default `200`; `0` keeps every checkpoint) |
 
 Threads live in the `langgraph_checkpoints` storage domain (tables `checkpoints`,
 `writes`, `threads`). `langgraph_threads({ action: 'delete', thread })` reclaims one.
@@ -273,8 +277,11 @@ Long-term memories live in `langgraph_store` (table `items`).
 
 - Graphs run in the Host process, not in a separate sandbox: a node's blast radius is
   what its DSH tool calls are allowed to do.
-- Every checkpoint of every thread is loaded when the domain opens; there is no
-  retention policy yet, so delete finished threads you no longer need.
+- Every stored checkpoint is loaded when the domain opens; loading is not lazy. History
+  is bounded per thread and namespace by `retention` (default 200), so a completed
+  thread cannot grow without bound; `retention: 0` keeps everything. Pruned checkpoints
+  cannot be read or replayed, so a graph that time-travels far back needs a larger
+  window or `0`. Delete finished threads you no longer need.
 - The long-term store has no TTL or eviction: entries remain until the graph deletes
   them. Vector search is not implemented, so `search({ query })` throws.
 - `langgraph_threads` lists the calling session's threads by default; `all: true` lists

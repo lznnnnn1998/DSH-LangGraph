@@ -1,6 +1,6 @@
 {
   "name": "@lzn1998/dsh-langgraph",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "description": "Durable LangGraph workflows as DSH tools: register TS/JS graphs, advertise them in the system prompt, run, resume and time-travel them, give them durable long-term memory, run them as background jobs, delegate to DSH subagents, trace every node/tool/model call in Trajectory, and let graph nodes call this session's own tools.",
   "repository": {

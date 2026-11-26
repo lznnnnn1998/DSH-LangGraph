@@ -78,6 +78,24 @@ test('history honours the limit and reports checkpoint metadata', async () => {
   ctx.dispose()
 })
 
+test('config.retention bounds a thread checkpoint history', async () => {
+  const storage = createStorageDomain()
+  const ctx = createContext(storage)
+  apply(ctx, { retention: 2, graphs: [{ id: 'time-travel', module: fixture('time-travel.js') }] })
+  const run = ctx.tools.get('langgraph_run')
+  const threads = ctx.tools.get('langgraph_threads')
+  const scope = exec()
+
+  await run.execute({ graph: 'time-travel', thread: 'bounded', input: { value: 0 } }, scope)
+  await run.execute({ graph: 'time-travel', thread: 'bounded', input: { value: 1 } }, scope)
+  const last = await run.execute({ graph: 'time-travel', thread: 'bounded', input: { value: 2 } }, scope)
+  assert.equal(last.state.value, 3)
+
+  const history = await threads.execute({ action: 'history', graph: 'time-travel', thread: 'bounded' }, scope)
+  assert.equal(history.checkpoints.length, 2)
+  ctx.dispose()
+})
+
 test('rejects a missing checkpoint, a checkpoint without a thread, and bad edit values', async () => {
   const { ctx, run, threads } = await setup()
   const first = await run.execute({ graph: 'time-travel', input: { value: 1 } }, exec())

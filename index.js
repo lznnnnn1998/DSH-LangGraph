@@ -165,11 +165,12 @@ export function renderGraphPrompt(registry, ready) {
 /**
  * Register the graph tools and the graph registry for one activation.
  * @param {import('@deepseek-ai/cordis').Context} ctx - the plugin's context.
- * @param {{ graphs?: { id?: string, module: string }[], recursionLimit?: number, model?: { provider?: string, model?: string, reasoningEffort?: string }, store?: boolean }} [config]
+ * @param {{ graphs?: { id?: string, module: string }[], recursionLimit?: number, model?: { provider?: string, model?: string, reasoningEffort?: string }, store?: boolean, retention?: number }} [config]
  *   row config: extra graph modules, the default LangGraph recursion limit, the
  *   model route graph nodes use through `helpers.callModel` (defaults to this
- *   deployment's selected model), and whether graphs get a long-term BaseStore
- *   (`store: false` passes none).
+ *   deployment's selected model), whether graphs get a long-term BaseStore
+ *   (`store: false` passes none), and how many checkpoints each thread keeps
+ *   (default 200; `0` is unlimited).
  */
 export function apply(ctx, config) {
   const extra = Array.isArray(config?.graphs) ? config.graphs : []
@@ -179,6 +180,9 @@ export function apply(ctx, config) {
   const promptEnabled = config?.prompt !== false
   const backgroundEnabled = config?.background !== false
   const storeEnabled = config?.store !== false
+  // Keep bounded thread history by default; 0 keeps every checkpoint, which a
+  // graph that time-travels further back needs.
+  const retention = Number.isInteger(config?.retention) && config.retention >= 0 ? config.retention : 200
   const configuredSubagentProvider = typeof config?.subagentProvider === 'string' && config.subagentProvider !== ''
     ? config.subagentProvider
     : 'spawn'
@@ -216,7 +220,7 @@ export function apply(ctx, config) {
         return undefined
       }
       try {
-        const store = await openCheckpointStore(storageDomain)
+        const store = await openCheckpointStore(storageDomain, { retention })
         if (disposed) {
           await store.close()
           return undefined

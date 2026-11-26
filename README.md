@@ -35,7 +35,8 @@ where it stopped.
   source, and DSH's existing session-event vocabulary is the sink. Background runs keep the
   same trace under their `langgraph_run` row even though the events arrive after the tool result.
 - Threads are owned by the session and graph that created them; another session cannot
-  resume or delete them.
+  resume or delete them. Each thread keeps at most `retention` checkpoints (default 200;
+  `0` keeps every checkpoint), with their writes pruned alongside.
 - See `docs/DETAIL.md` for the graph module contract, trace mapping, thread semantics, and limits.
 
 From npm: `dsh plugin --profile <name> add @lzn1998/dsh-langgraph`, then restart that

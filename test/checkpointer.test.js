@@ -108,6 +108,56 @@ test('deletes every record of one thread', async () => {
   assert.deepEqual(saver.listThreads(), [])
 })
 
+test('prunes checkpoints beyond the retention window and their writes', async () => {
+  const { saver } = await openCheckpointStore(createStorageDomain(), { retention: 2 })
+  const config = { configurable: { thread_id: 'thread-a' } }
+  const ids = []
+  for (let index = 1; index <= 5; index += 1) {
+    const id = `1f000000-0000-6000-8000-00000000000${index}`
+    ids.push(id)
+    const written = await saver.put(config, checkpoint(id), { step: index })
+    await saver.putWrites(written, [['messages', [`m${index}`]]], `task-${index}`, '')
+  }
+
+  const listed = []
+  for await (const tuple of saver.list(config)) listed.push(tuple.checkpoint.id)
+  assert.deepEqual(listed, [ids[4], ids[3]], 'only the newest two checkpoints remain')
+
+  assert.deepEqual(await saver.pendingWrites('thread-a', '', ids[0]), [], 'pruned writes are gone')
+  assert.equal((await saver.pendingWrites('thread-a', '', ids[4]))[0][2][0], 'm5', 'kept writes remain')
+
+  const meta = saver.threadMeta('thread-a')
+  assert.equal(meta.checkpoints, 2)
+  assert.equal(meta.writes, 2)
+})
+
+test('retention 0 keeps every checkpoint', async () => {
+  const { saver } = await openCheckpointStore(createStorageDomain(), { retention: 0 })
+  const config = { configurable: { thread_id: 'thread-a' } }
+  for (let index = 1; index <= 5; index += 1) {
+    await saver.put(config, checkpoint(`1f000000-0000-6000-8000-00000000000${index}`), { step: index })
+  }
+  let count = 0
+  for await (const _tuple of saver.list(config)) count += 1
+  assert.equal(count, 5)
+  assert.equal(saver.threadMeta('thread-a').checkpoints, 5)
+})
+
+test('retention is applied per thread', async () => {
+  const { saver } = await openCheckpointStore(createStorageDomain(), { retention: 1 })
+  for (const thread of ['thread-a', 'thread-b']) {
+    for (let index = 1; index <= 3; index += 1) {
+      await saver.put({ configurable: { thread_id: thread } }, checkpoint(`1f000000-0000-6000-8000-00000000000${index}`), { step: index })
+    }
+  }
+  for (const thread of ['thread-a', 'thread-b']) {
+    const listed = []
+    for await (const tuple of saver.list({ configurable: { thread_id: thread } })) listed.push(tuple.checkpoint.id)
+    assert.deepEqual(listed, ['1f000000-0000-6000-8000-000000000003'])
+    assert.equal(saver.threadMeta(thread).checkpoints, 1)
+  }
+})
+
 test('rejects unsafe thread ids', async () => {
   const saver = new DshCheckpointSaver({
     table() {

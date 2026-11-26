@@ -169,11 +169,16 @@ function parseThreadKey(key) {
 export class DshCheckpointSaver extends BaseCheckpointSaver {
   /**
    * @param {object} domain - an open storage domain shaped by {@link DOMAIN}.
+   * @param {{ retention?: number }} [options] - checkpoints to keep per thread and
+   *   namespace; `0` keeps every checkpoint. Defaults to 200.
    */
-  constructor(domain) {
+  constructor(domain, options = {}) {
     super()
     /** @type {object} */
     this.domain = domain
+    const retention = options.retention
+    /** @type {number} checkpoints kept per thread and namespace; 0 means unlimited. */
+    this.retention = Number.isInteger(retention) && retention >= 0 ? retention : 200
   }
 
   /** @param {'checkpoints' | 'writes' | 'threads'} table - table name. @returns {any} the table handle. */
@@ -332,6 +337,7 @@ export class DshCheckpointSaver extends BaseCheckpointSaver {
       createdAt: Date.now(),
     })
     await this.touchThread(thread, 'checkpoints')
+    await this.prune(thread, ns)
     return { configurable: { thread_id: thread, checkpoint_ns: ns, checkpoint_id: checkpoint.id } }
   }
 
@@ -467,6 +473,64 @@ export class DshCheckpointSaver extends BaseCheckpointSaver {
   }
 
   /**
+   * Keep only the newest `retention` checkpoints of one thread and namespace,
+   * deleting the checkpoints that fell out of the window together with their
+   * writes, and reconcile the thread's counters with what is actually stored.
+   *
+   * Retention is lossy by design: a pruned checkpoint can no longer be read or
+   * replayed, and a retained checkpoint's `parent` may point outside the window.
+   * That is why 0 (unlimited) is supported for graphs that need full history.
+   * @param {string} thread - thread id.
+   * @param {string} ns - checkpoint namespace.
+   */
+  async prune(thread, ns) {
+    if (this.retention <= 0) return
+    const rows = []
+    let threadCheckpoints = 0
+    for (const [key, record] of this.table('checkpoints').entries()) {
+      let parsed
+      try {
+        parsed = parseCheckpointKey(key)
+      } catch {
+        continue
+      }
+      if (parsed[0] !== thread) continue
+      threadCheckpoints += 1
+      if (parsed[1] === ns) rows.push({ key, id: parsed[2] })
+    }
+    if (rows.length <= this.retention) return
+    rows.sort((left, right) => (left.id < right.id ? 1 : left.id > right.id ? -1 : 0))
+    const removed = rows.slice(this.retention)
+    const removedIds = new Set(removed.map(row => row.id))
+    await this.table('checkpoints').deleteMany(removed.map(row => row.key))
+
+    const writeKeys = []
+    let threadWrites = 0
+    for (const key of this.table('writes').keys()) {
+      let parsed
+      try {
+        parsed = parseWritesKey(key)
+      } catch {
+        continue
+      }
+      if (parsed[0] !== thread) continue
+      if (parsed[1] === ns && removedIds.has(parsed[2])) writeKeys.push(key)
+      else threadWrites += 1
+    }
+    if (writeKeys.length > 0) await this.table('writes').deleteMany(writeKeys)
+
+    const table = this.table('threads')
+    const key = threadKey(thread)
+    if (table.get(key) !== undefined) {
+      await table.update(key, current => ({
+        ...current,
+        checkpoints: threadCheckpoints - removed.length,
+        writes: threadWrites,
+      }))
+    }
+  }
+
+  /**
    * List known threads, newest first.
    * @param {{ sessionId?: string, graph?: string, limit?: number }} [options] - filters.
    * @returns {Array<{ thread: string, graph: string | null, sessionId: string | null, createdAt: number, updatedAt: number, checkpoints: number, writes: number }>} threads.
@@ -511,10 +575,11 @@ export class DshCheckpointSaver extends BaseCheckpointSaver {
 /**
  * Open the checkpoint domain.
  * @param {object} storageDomain - the `storageDomain` service.
+ * @param {{ retention?: number }} [options] - checkpoints to keep per thread and namespace.
  * @returns {Promise<{ saver: DshCheckpointSaver, close: () => Promise<void> }>} the open store.
  */
-export async function openCheckpointStore(storageDomain) {
+export async function openCheckpointStore(storageDomain, options = {}) {
   const domain = await storageDomain.open(DOMAIN)
-  const saver = new DshCheckpointSaver(domain)
+  const saver = new DshCheckpointSaver(domain, options)
   return { saver, close: () => domain.close() }
 }
