@@ -1,4 +1,4 @@
-# LangGraph workflows
+# LangGraph graphs
 
 Run a LangGraph graph from inside a DSH agent session, and continue it later.
 
@@ -47,17 +47,20 @@ Run a LangGraph graph from inside a DSH agent session, and continue it later.
 ## Model-facing guidance
 
 While the plugin is active it registers a system-prompt section through DSH's public
-`ctx.systemPrompt.section` API — no DSH source change. The section names `langgraph_run`,
-says explicitly that it is not the `workflow` tool, tells the model to call it when the
-user names a graph id or a request matches a graph description (rather than reimplementing
-it with bash/subagent), and lists the registered graph ids with their one-line
-descriptions (up to 24; input schemas stay out of the prompt). The model therefore knows
+`ctx.systemPrompt.section` API — no DSH source change. The section defines the vocabulary
+(profile-registered graphs, not the `workflow` tool), the trigger policy (a named graph,
+a description match, or a graph-specific need such as a durable thread, background job,
+interrupt/resume, checkpoint replay, or Trajectory sub-calls), and the registry (up to 24
+ids and descriptions; input schemas stay out of the prompt). The model therefore knows
 what exists without spending a discovery call; `langgraph_run` with no `graph` still
 returns the full list and input schemas.
 
 - The section sits just before the subagent guidance, after the `workflow` tool's
   "only when the user asks" rule. An earlier placement at `TOOL_WORKFLOW` made the two
   "workflow" instructions read as one.
+- Apart from the section and the two tool schemas, the plugin injects no runtime context;
+  per-session thread facts are read on demand with `langgraph_threads`. See
+  [CONTEXT.md](CONTEXT.md) for the mapping and the maintenance rules.
 
 - The registry is scanned when the plugin activates, so graph modules should keep top-level
   code side-effect free.
@@ -305,8 +308,8 @@ const ship = answers.find(answer => answer.id === 'ship')
 ## Writing a graph (TypeScript or JavaScript)
 
 ```ts
-export const id = 'my-workflow'
-export const description = 'One line the agent sees when it lists workflows.'
+export const id = 'my-graph'
+export const description = 'One line the agent sees when it lists graphs.'
 export const input = {
   type: 'object',
   properties: { pattern: { type: 'string', description: 'Glob to scan.' } },

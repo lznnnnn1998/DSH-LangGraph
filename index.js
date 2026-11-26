@@ -1,5 +1,5 @@
 /**
- * LangGraph workflows as DSH tools, with durable threads.
+ * LangGraph graphs as DSH tools, with durable threads.
  *
  * A graph module exports `id`, an optional `description`, an optional `input` JSON
  * Schema for its initial state, and `build(api)` where `api` carries the LangGraph API
@@ -134,7 +134,8 @@ function describeInput(entry) {
  * @returns {string} section text.
  */
 export function renderGraphPrompt(registry, ready) {
-  const intro = 'LangGraph graphs are available through the `langgraph_run` tool.'
+  const intro = 'LangGraph graphs are profile-registered, named graphs run by `langgraph_run`. '
+    + 'They are not the `workflow` tool (`workflow` runs an ad-hoc JavaScript fan-out script).'
   if (!ready) {
     return `${intro} Call it with no \`graph\` to list the registered graphs and their input schemas.`
   }
@@ -154,15 +155,18 @@ export function renderGraphPrompt(registry, ready) {
   }
   return [
     intro,
-    'This is not the `workflow` tool: `workflow` runs a generated JavaScript fan-out script, '
-      + 'while `langgraph_run` runs a graph module registered with this profile.',
-    'Call `langgraph_run` when the user names a graph id, or when a request clearly matches one '
-      + 'of the registered graph descriptions below; do not reimplement a matching graph with bash, '
-      + 'subagent, or ad-hoc steps. It is also the right tool when a task needs a durable thread, '
-      + 'a background run, interrupt/resume, checkpoint replay, long-term memory, or a traced '
-      + 'node/tool/model record. Use `langgraph_threads` to list, inspect, or delete durable threads.',
+    'Use `langgraph_run` when:\n'
+      + '- the user names one of the graph ids below;\n'
+      + '- a registered graph\'s description matches the requested output; use that graph instead of '
+      + 'hand-rolling its steps with bash, subagent, or ad-hoc calls;\n'
+      + '- the task needs a durable LangGraph thread, a background run (a DSH job), checkpoint '
+      + 'history or replay, a Trajectory sub-call record, or the graph description says it interrupts.',
+    'When no graph\'s output matches, use ordinary DSH tools; do not wrap a single tool call in a graph '
+      + 'just for ceremony, and do not use the `workflow` tool as a substitute for a named graph.',
+    'A LangGraph thread is a durable checkpoint chain for one graph run, not a DSH Session. '
+      + 'Use `langgraph_threads` to list, inspect, time-travel, or delete threads, or read a graph\'s topology.',
     `Registered graphs:\n${lines.join('\n')}`,
-    'Omit `graph` to see each graph\'s input schema.',
+    'Omit `graph` to list input schemas.',
   ].join('\n\n')
 }
 
@@ -681,7 +685,7 @@ export function apply(ctx, config) {
   // --- tools --------------------------------------------------------------------
   async function describeGraphs() {
     await scan()
-    if (registry.size === 0) return 'No LangGraph workflow is registered.'
+    if (registry.size === 0) return 'No LangGraph graph is registered.'
     const lines = [...registry.values()]
       .sort((left, right) => left.id.localeCompare(right.id))
       .map(entry => {
@@ -1184,28 +1188,28 @@ export function apply(ctx, config) {
         name: 'tool:langgraph',
         order,
         text: () => renderGraphPrompt(registry, scannedReady),
-        retirement: 'The langgraph_run workflow guidance no longer applies.',
+        retirement: 'The langgraph_run graph guidance no longer applies.',
       }), 'langgraph: prompt section')
     }
   }
 
   ctx.effect(() => ctx.tools.register({
     name: RUN_TOOL,
-    description: 'Run a registered LangGraph graph. This is not the `workflow` tool: call it when the user '
-      + 'names a graph id or a request matches a registered graph. Graphs coordinate work in this workspace: '
-      + 'their nodes call the same tools you have, in this session and sandbox. Omit `graph` to list them '
-      + 'with their input schemas. Threads are durable: pass `thread` to continue one, and `resume` to answer '
-      + 'an interrupted graph. Set `run_in_background` to return a job id immediately; read it with '
-      + 'job_output and stop it with job_kill.',
+    description: 'Run one registered LangGraph graph by id. Use it when the user names a graph, a graph\'s '
+      + 'description matches the requested output, or the task needs a durable thread, background job, '
+      + 'checkpoint replay, or Trajectory record; it is not the `workflow` tool. Omit `graph` to list graphs '
+      + 'and input schemas. Threads are durable LangGraph checkpoint chains (not DSH Sessions): pass `thread` '
+      + 'to continue one, `resume` to answer an interrupt, and `checkpoint` to replay a snapshot from '
+      + '`langgraph_threads` history. `run_in_background` returns a DSH job id for `job_output`/`job_kill`.',
     parameters: {
       type: 'object',
       properties: {
-        graph: { type: 'string', description: 'Graph id. Omit to list the registered graphs.' },
+        graph: { type: 'string', description: 'Registered graph id; omit to list graphs and input schemas.' },
         input: { type: 'object', description: 'Initial graph state, as a JSON object.', additionalProperties: true },
-        thread: { type: 'string', description: 'Thread to continue. Omit to start a new durable thread.' },
+        thread: { type: 'string', description: 'LangGraph thread to continue; omit to start a new durable thread. Not a DSH Session id.' },
         checkpoint: {
           type: 'string',
-          description: 'Checkpoint id to replay from. Requires `thread`; list them with langgraph_threads action "history".',
+          description: 'Checkpoint id to replay from (langgraph_threads action "history"); requires `thread`.',
         },
         resume: { description: 'Value handed to an interrupted graph, resuming it where it stopped.' },
         maxSteps: { type: 'integer', description: 'Upper bound on graph supersteps for this run.' },
@@ -1232,16 +1236,16 @@ export function apply(ctx, config) {
 
   ctx.effect(() => ctx.tools.register({
     name: THREADS_TOOL,
-    description: 'List, inspect, time-travel, or delete durable LangGraph threads, or read a graph\'s topology. '
-      + 'Threads of this session are listed by default; `state` shows a thread\'s values and what it waits on; '
-      + '`history` lists checkpoints; `edit` forks a checkpoint with new values, then replay it with '
-      + 'langgraph_run({ checkpoint }); `topology` returns a graph\'s nodes and edges.',
+    description: 'Manage durable LangGraph threads and a graph\'s topology. `list` (this session by default), '
+      + '`state` (values, next, interrupts), `history` (checkpoint ids), `edit` (fork a checkpoint with new '
+      + 'values), `topology` (nodes/edges), or `delete`. A thread is a LangGraph checkpoint chain, not a '
+      + 'DSH Session. Replay an edit with `langgraph_run({ checkpoint })`.',
     parameters: {
       type: 'object',
       properties: {
         action: { type: 'string', enum: ['list', 'state', 'history', 'edit', 'topology', 'delete'], description: 'Defaults to list.' },
-        graph: { type: 'string', description: 'Graph id; required by state, history, and edit.' },
-        thread: { type: 'string', description: 'Thread id; required by state, history, edit, and delete.' },
+        graph: { type: 'string', description: 'Graph id; required by state, history, edit, and topology.' },
+        thread: { type: 'string', description: 'LangGraph thread id; required by state, history, edit, and delete. Not a DSH Session id.' },
         checkpoint: { type: 'string', description: 'Checkpoint id for state, edit, or replay; defaults to the thread head.' },
         values: { type: 'object', description: 'State fields to write in an edit, as a JSON object.', additionalProperties: true },
         asNode: { type: 'string', description: 'Attribute an edit to this node, when the graph needs one.' },

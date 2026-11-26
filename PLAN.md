@@ -18,6 +18,7 @@ Current release:
 - `0.13.0` client panel is committed in `a9ea4ef` and verified in Web
 - `0.13.1` prompt distinction is committed (53 tests pass) and verified in Web:
   “扫描一下这个目录里有多少 JS 文件” now lists graphs, then calls `scan-report`
+- `1.0.0` context/prompt audit is implemented (53 tests pass); release pending
 - `0.14.0` sandbox worker is deferred after checking the sandbox surface (see below)
 
 ## Per-version checklist
@@ -105,6 +106,23 @@ explicit request or at the end of the batch.
 - Verified in Web: "扫描一下这个目录里有多少 JS 文件，看看多不多" called
   `langgraph_run` with no graph (list), then `scan-report`, then one bash count.
 - Commit: `fix: distinguish LangGraph graphs from the workflow tool` (`d0b3269`).
+
+## 1.0.0 — context/prompt audit and release
+- Audited the two model-facing layers (tool schemas and one prompt section); no runtime
+  context is injected.
+- Rewrote the section around one vocabulary (graphs, LangGraph thread, DSH job,
+  Trajectory) and one trigger/non-trigger policy; removed the misleading long-term-memory
+  trigger; made "not a DSH Session" explicit.
+- Tool descriptions now split selection (section) from mechanics (tools); UI, docs,
+  locale, and example comments normalized to "graphs".
+- `docs/CONTEXT.md` records the boundary with `workflow`, `subagent`, `ask_user_question`,
+  jobs, Sessions, and Trajectory, plus the maintenance checklist.
+- Tests: prompt text/order plus apply-level tool descriptions (53 total).
+- Verified in fresh Web sessions: an exact file count used glob + bash (no graph, because
+  `scan-report` reports a verdict, not an exact count); “只要多还是少，不用精确数”
+  called `langgraph_run({ graph: 'scan-report' })`. The prompt section sits at 2790,
+  after the `workflow` rule and before subagent guidance.
+- Release: push `main`, tag `v1.0.0`, publish `@lzn1998/dsh-langgraph@1.0.0`.
 
 ## 0.14.0 — sandboxed graph worker (DEFERRED — not a small version)
 Checked against DSH 0.2.2-rc.5/0.2.3-alpha.2:

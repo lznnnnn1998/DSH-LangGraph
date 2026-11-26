@@ -1,5 +1,5 @@
 /**
- * Example ReAct workflow: LangGraph's prebuilt agent driving DSH tools with this
+ * Example ReAct graph: LangGraph's prebuilt agent driving DSH tools with this
  * deployment's model.
  *
  * This is the "LangGraph in DSH" case end to end: the graph is LangGraph's own

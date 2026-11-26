@@ -1,5 +1,5 @@
 /**
- * Example workflow that pauses for a decision before doing any work.
+ * Example graph that pauses for a decision before doing any work.
  *
  * The gate node calls LangGraph's `interrupt(...)`: the run stops, the agent sees
  * `status: "interrupted"` with the question, and `langgraph_run({ graph, thread,

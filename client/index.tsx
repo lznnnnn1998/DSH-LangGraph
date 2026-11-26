@@ -295,14 +295,14 @@ function LangGraphPanel() {
 
   const selectedGraph = ui?.graphs.find(graph => graph.id === selected)
   return (
-    <section className="lg-panel" aria-label="LangGraph workflows">
+    <section className="lg-panel" aria-label="LangGraph graphs">
       <header className="lg-header">
         <div>
           <h2 className="lg-title">LangGraph</h2>
           <p className="lg-muted">
             {ui === undefined
-              ? 'Loading workflows…'
-              : `${ui.graphs.length} workflow${ui.graphs.length === 1 ? '' : 's'} · ${ui.threads.total} durable thread${ui.threads.total === 1 ? '' : 's'}`}
+              ? 'Loading graphs…'
+              : `${ui.graphs.length} graph${ui.graphs.length === 1 ? '' : 's'} · ${ui.threads.total} durable thread${ui.threads.total === 1 ? '' : 's'}`}
           </p>
         </div>
         <button type="button" className="lg-button" onClick={() => { void refresh() }}>Refresh</button>
@@ -328,7 +328,7 @@ function LangGraphPanel() {
               )}
             </button>
           ))}
-          {ui !== undefined && ui.graphs.length === 0 && <p className="lg-muted">No workflows registered.</p>}
+          {ui !== undefined && ui.graphs.length === 0 && <p className="lg-muted">No graphs registered.</p>}
         </nav>
 
         <div className="lg-canvas">
@@ -336,7 +336,7 @@ function LangGraphPanel() {
           {busy && <p className="lg-muted">Loading topology…</p>}
           {!busy && topology !== undefined && <TopologyView topology={topology} />}
           {!busy && topology === undefined && topologyError === undefined && (
-            <p className="lg-muted">Select a workflow to see its nodes and edges.</p>
+            <p className="lg-muted">Select a graph to see its nodes and edges.</p>
           )}
         </div>
       </div>

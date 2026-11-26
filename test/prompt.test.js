@@ -9,22 +9,29 @@ test('renders a discovery hint before the first scan', () => {
   assert.doesNotMatch(text, /Registered graphs:/)
 })
 
-test('lists available graphs, distinguishes the workflow tool, and skips broken modules', () => {
+test('states the vocabulary, trigger policy, and graph list', () => {
   const registry = new Map([
     ['b', { id: 'b', description: 'Second graph.' }],
     ['a', { id: 'a', description: 'First\ngraph.' }],
     ['broken', { id: 'broken', error: new Error('bad module') }],
   ])
   const text = renderGraphPrompt(registry, true)
+  assert.match(text, /LangGraph graphs are profile-registered, named graphs/)
+  assert.match(text, /They are not the `workflow` tool/)
+  assert.match(text, /Use `langgraph_run` when:/)
+  assert.match(text, /the user names one of the graph ids below/)
+  assert.match(text, /a registered graph's description matches the requested output/)
+  assert.match(text, /use that graph instead of hand-rolling its steps with bash, subagent, or ad-hoc calls/)
+  assert.match(text, /durable LangGraph thread, a background run \(a DSH job\)/)
+  assert.match(text, /or the graph description says it interrupts/)
+  assert.match(text, /When no graph's output matches, use ordinary DSH tools/)
+  assert.match(text, /do not use the `workflow` tool as a substitute for a named graph/)
+  assert.match(text, /not a DSH Session/)
   assert.match(text, /Registered graphs:/)
   assert.match(text, /- a: First graph\./)
   assert.match(text, /- b: Second graph\./)
   assert.doesNotMatch(text, /broken/)
-  assert.match(text, /This is not the `workflow` tool/)
-  assert.match(text, /clearly matches one of the registered graph descriptions/)
-  assert.match(text, /do not reimplement a matching graph with bash, subagent, or ad-hoc steps/)
-  assert.match(text, /langgraph_threads/)
-  assert.match(text, /Omit `graph` to see each graph's input schema\./)
+  assert.match(text, /Omit `graph` to list input schemas\./)
 })
 
 test('reports an empty registry after a completed scan', () => {

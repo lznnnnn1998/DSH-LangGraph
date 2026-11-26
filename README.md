@@ -1,6 +1,6 @@
 # dsh-langgraph
 
-A DSH bundle that registers LangGraph workflows and exposes them to the agent as the
+A DSH bundle that registers LangGraph graphs and exposes them to the agent as the
 `langgraph_run` and `langgraph_threads` tools. Graph nodes call the session's own DSH
 tools through `helpers.callTool`; threads are checkpointed in a DSH storage domain, so a
 run survives the turn — and the Host process — and an `interrupt()`ed graph resumes
@@ -41,11 +41,13 @@ where it stopped.
   resume or delete them. Each thread keeps at most `retention` checkpoints (default 200;
   `0` keeps every checkpoint), with their writes pruned alongside.
 - **Web panel:** in a Web profile the plugin contributes a **LangGraph** sidebar panel that
-  lists the registered workflows, their thread counts, and the selected graph's topology
+  lists the registered graphs, their thread counts, and the selected graph's topology
   (nodes, edges, conditional branches). It reads two owner-only `/api/plugins/langgraph/*`
   routes; `config.ui: false` registers neither. Token-level streaming is not part of this
   panel; runs stay visible in Trajectory.
 - See `docs/DETAIL.md` for the graph module contract, trace mapping, thread semantics, and limits.
+- See `docs/CONTEXT.md` for what is injected into the model context, the vocabulary, and
+  how it stays distinct from DSH's `workflow`, `subagent`, and question tools.
 - See `docs/ECOSYSTEM.md` for adding LangChain packages, vector stores, prebuilt agents,
   LangSmith tracing, and streaming.
 

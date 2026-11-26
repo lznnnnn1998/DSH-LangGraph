@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "LangGraph workflows",
-    "description": "Registers LangGraph graphs as durable workflows an agent runs with the langgraph_run tool. Registered graphs are listed in the system prompt, nodes call this session's own tools in its sandbox, can ask the user through the native question UI, run as background jobs or delegate to DSH subagents, every node/tool/model call is traced in Trajectory, threads and long-term memory survive restarts, an interrupted graph resumes where it stopped, and a Web sidebar panel lists the workflows and draws their topology.",
+    "title": "LangGraph graphs",
+    "description": "Registers LangGraph graphs as durable DSH tools an agent runs with the langgraph_run tool. Registered graphs are listed in the system prompt, nodes call this session's own tools in its sandbox, can ask the user through the native question UI, run as background jobs or delegate to DSH subagents, every node/tool/model call is traced in Trajectory, threads and long-term memory survive restarts, an interrupted graph resumes where it stopped, and a Web sidebar panel lists the graphs and draws their topology.",
     "detail": "docs/DETAIL.md"
   }
 }

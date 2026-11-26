@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "LangGraph 工作流",
-    "description": "把 LangGraph 图注册成可持久化的流程，agent 通过 langgraph_run 工具运行。已注册的图会列在 system prompt 里，图里的节点调用本会话自己的工具、在同一个沙箱执行，可通过原生提问 UI 询问用户，可后台运行，也可派发 DSH 子 agent；节点/工具/模型动作在 Trajectory 里逐层可见；线程和长期记忆跨重启保留，被 interrupt 暂停的图可以从原处继续；Web 侧边栏面板会列出工作流并绘制拓扑。",
+    "title": "LangGraph 图",
+    "description": "把 LangGraph 图注册成可持久化的 DSH 工具，agent 通过 langgraph_run 工具运行。已注册的图会列在 system prompt 里，图里的节点调用本会话自己的工具、在同一个沙箱执行，可通过原生提问 UI 询问用户，可后台运行，也可派发 DSH 子 agent；节点/工具/模型动作在 Trajectory 里逐层可见；线程和长期记忆跨重启保留，被 interrupt 暂停的图可以从原处继续；Web 侧边栏面板会列出图并绘制拓扑。",
     "detail": "docs/DETAIL.md"
   }
 }

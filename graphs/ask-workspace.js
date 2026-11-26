@@ -1,5 +1,5 @@
 /**
- * Example workflow that mixes DSH tool calls with a model call inside one graph.
+ * Example graph that mixes DSH tool calls with a model call inside one graph.
  *
  * `scan` reads the workspace through the DSH `glob` tool; `answer` asks the
  * deployment's model to explain the result. The graph owns the control flow, DSH

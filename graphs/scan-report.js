@@ -1,5 +1,5 @@
 /**
- * Example LangGraph workflow shipped with the plugin.
+ * Example LangGraph graph shipped with the plugin.
  *
  * It demonstrates the two things this plugin adds to LangGraph inside DSH:
  * - a graph is registered by id and run from the agent's `langgraph_run` tool;
