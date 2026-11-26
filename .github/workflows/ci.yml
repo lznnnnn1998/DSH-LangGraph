@@ -24,4 +24,4 @@ jobs:
 
       - run: npm test
 
-      - run: npx -y -p typescript@5.9.0 tsc --noEmit --skipLibCheck --strict --target ES2022 --module NodeNext --moduleResolution NodeNext index.d.ts graphs/typed-report.ts
+      - run: npx -y -p typescript@6.0.3 tsc --noEmit --skipLibCheck --strict --target ES2022 --module NodeNext --moduleResolution NodeNext index.d.ts graphs/typed-report.ts
