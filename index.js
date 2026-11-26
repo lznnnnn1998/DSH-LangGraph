@@ -684,14 +684,23 @@ export function apply(ctx, config) {
         }
       }
 
+      const requestedCheckpoint = typeof args?.checkpoint === 'string' && args.checkpoint.trim() !== ''
+        ? args.checkpoint.trim()
+        : undefined
       const config = {
         recursionLimit: Number.isInteger(args?.maxSteps) ? args.maxSteps : recursionLimit,
-        ...(thread === undefined ? {} : { configurable: { thread_id: thread } }),
+        ...(thread === undefined ? {} : {
+          configurable: {
+            thread_id: thread,
+            ...(requestedCheckpoint === undefined ? {} : { checkpoint_id: requestedCheckpoint }),
+          },
+        }),
         ...(signal === undefined ? {} : { signal }),
       }
 
       // An explicit `resume` answers an interrupt; an explicit `input` applies new input;
-      // otherwise a thread that is still mid-run continues from its last checkpoint.
+      // otherwise a thread that is still mid-run continues from its last checkpoint. A
+      // checkpoint id replays from that snapshot instead of the thread head.
       let input
       let mode
       if (args?.resume !== undefined) {
@@ -701,8 +710,27 @@ export function apply(ctx, config) {
         input = args.input
         mode = 'input'
       } else if (checkpointed && requestedThread !== undefined && typeof compiled.getState === 'function') {
-        const snapshot = await compiled.getState(config)
-        if ((snapshot?.next?.length ?? 0) > 0) {
+        // `getState` synthesizes an empty snapshot for an unknown checkpoint id
+        // instead of failing, so ask the saver whether that checkpoint exists.
+        if (requestedCheckpoint !== undefined && typeof compiled.checkpointer?.getTuple === 'function') {
+          const tuple = await compiled.checkpointer.getTuple(config).catch(() => undefined)
+          if (tuple === undefined) {
+            return { error: `checkpoint "${requestedCheckpoint}" was not found in thread "${thread}"` }
+          }
+        }
+        let snapshot
+        try {
+          snapshot = await compiled.getState(config)
+        } catch (error) {
+          return { error: `checkpoint "${requestedCheckpoint}" was not found in thread "${thread}"` }
+        }
+        if (snapshot === undefined) {
+          return { error: `checkpoint "${requestedCheckpoint}" was not found in thread "${thread}"` }
+        }
+        if (requestedCheckpoint !== undefined) {
+          input = null
+          mode = 'replay'
+        } else if ((snapshot?.next?.length ?? 0) > 0) {
           input = null
           mode = 'continue'
         } else {
@@ -722,6 +750,7 @@ export function apply(ctx, config) {
         mode,
         durable: checkpointed,
         ...(thread === undefined ? {} : { thread }),
+        ...(requestedCheckpoint === undefined ? {} : { checkpoint: requestedCheckpoint }),
       }
       if (interrupts !== undefined) {
         return {
@@ -834,6 +863,10 @@ export function apply(ctx, config) {
     const { store: graphStore } = await ensureGraphStore()
     const sessionId = exec?.agent?.id
     const requestedThread = typeof args.thread === 'string' && args.thread.trim() !== '' ? args.thread.trim() : undefined
+    const requestedCheckpoint = typeof args?.checkpoint === 'string' && args.checkpoint.trim() !== '' ? args.checkpoint.trim() : undefined
+    if (requestedCheckpoint !== undefined && requestedThread === undefined) {
+      return { error: '`checkpoint` requires `thread`: a checkpoint id belongs to one thread' }
+    }
 
     if (args?.run_in_background === true) {
       if (!backgroundEnabled) return { error: 'run_in_background is disabled for this plugin' }
@@ -896,10 +929,12 @@ export function apply(ctx, config) {
       await withThreadLock(thread, () => store.forgetThreadRecords(thread))
       return { deleted: thread }
     }
-    if (action === 'state') {
+    if (action === 'state' || action === 'history' || action === 'edit') {
       const id = typeof args?.graph === 'string' ? args.graph.trim() : ''
       const thread = typeof args?.thread === 'string' ? args.thread.trim() : ''
-      if (id === '' || thread === '') return { error: '`graph` and `thread` are required to read a thread state' }
+      if (id === '' || thread === '') {
+        return { error: `\`graph\` and \`thread\` are required to ${action === 'edit' ? 'edit' : 'read'} a thread` }
+      }
       const entry = registry.get(id)
       if (entry === undefined) return { error: `unknown graph "${id}"` }
       if (entry.error !== undefined) return { error: `graph "${id}" is unavailable: ${entry.error.message}` }
@@ -912,16 +947,97 @@ export function apply(ctx, config) {
       if (typeof compiled.getState !== 'function' || compiled.checkpointer === undefined) {
         return { error: `graph "${id}" does not carry a checkpointer` }
       }
-      const snapshot = await withThreadLock(thread, () => compiled.getState({ configurable: { thread_id: thread } }))
+      const checkpoint = typeof args?.checkpoint === 'string' ? args.checkpoint.trim() : ''
+      const checkpointConfig = {
+        configurable: {
+          thread_id: thread,
+          ...(checkpoint === '' ? {} : { checkpoint_id: checkpoint }),
+        },
+      }
+      // `getState` returns an empty snapshot for an unknown id; validate against
+      // the saver so `state` and `edit` cannot silently act on a missing checkpoint.
+      const checkpointSaver = compiled.checkpointer ?? saver
+      if (checkpoint !== '' && action !== 'history' && typeof checkpointSaver?.getTuple === 'function') {
+        const tuple = await checkpointSaver.getTuple(checkpointConfig).catch(() => undefined)
+        if (tuple === undefined) {
+          return { error: `checkpoint "${checkpoint}" was not found in thread "${thread}"` }
+        }
+      }
+
+      if (action === 'history') {
+        if (typeof compiled.getStateHistory !== 'function') {
+          return { error: `graph "${id}" cannot list checkpoint history` }
+        }
+        const limit = Number.isInteger(args?.limit) && args.limit > 0 ? Math.min(args.limit, 200) : 20
+        const checkpoints = await withThreadLock(thread, async () => {
+          const list = []
+          for await (const snapshot of compiled.getStateHistory({ configurable: { thread_id: thread } })) {
+            list.push({
+              checkpoint: snapshot.config?.configurable?.checkpoint_id,
+              step: snapshot.metadata?.step,
+              source: snapshot.metadata?.source,
+              createdAt: snapshot.createdAt,
+              next: toJsonSafe(snapshot.next ?? []),
+              paused: (snapshot.tasks ?? []).some(task => (task.interrupts?.length ?? 0) > 0),
+            })
+            if (list.length >= limit) break
+          }
+          return list
+        })
+        return {
+          graph: id,
+          thread,
+          checkpoints,
+          hint: 'Read one with `state` and its checkpoint, or replay it with `langgraph_run({ graph, thread, checkpoint })`.',
+        }
+      }
+
+      if (action === 'edit') {
+        const values = args?.values
+        if (values === null || typeof values !== 'object' || Array.isArray(values)) {
+          return { error: '`values` must be a JSON object to edit a thread state' }
+        }
+        if (typeof compiled.updateState !== 'function') {
+          return { error: `graph "${id}" cannot update state` }
+        }
+        const asNode = typeof args?.asNode === 'string' && args.asNode.trim() !== '' ? args.asNode.trim() : undefined
+        const updated = await withThreadLock(thread, () => compiled.updateState(checkpointConfig, values, asNode))
+        const newCheckpoint = updated?.configurable?.checkpoint_id
+        const snapshot = await compiled.getState(updated)
+        return {
+          graph: id,
+          thread,
+          checkpoint: newCheckpoint,
+          ...(checkpoint === '' ? {} : { editedFrom: checkpoint }),
+          values: toJsonSafe(withoutInterrupts(snapshot?.values ?? {})),
+          next: toJsonSafe(snapshot?.next ?? []),
+          hint: 'Replay the edit with `langgraph_run({ graph, thread, checkpoint })`.',
+        }
+      }
+
+      let snapshot
+      try {
+        snapshot = await withThreadLock(thread, () => compiled.getState(checkpointConfig))
+      } catch {
+        snapshot = undefined
+      }
+      if (snapshot === undefined) {
+        return {
+          error: checkpoint === ''
+            ? `thread "${thread}" has no state for graph "${id}"`
+            : `checkpoint "${checkpoint}" was not found in thread "${thread}"`,
+        }
+      }
       return {
         graph: id,
         thread,
+        checkpoint: checkpoint === '' ? snapshot.config?.configurable?.checkpoint_id : checkpoint,
         values: toJsonSafe(withoutInterrupts(snapshot?.values ?? {})),
         next: toJsonSafe(snapshot?.next ?? []),
         interrupts: toJsonSafe(snapshot?.tasks?.flatMap(task => task.interrupts ?? []) ?? []),
       }
     }
-    return { error: `unknown action "${action}"; expected list, state, or delete` }
+    return { error: `unknown action "${action}"; expected list, state, history, edit, or delete` }
   }
 
   // --- model-facing guidance ----------------------------------------------------
@@ -965,6 +1081,10 @@ export function apply(ctx, config) {
         graph: { type: 'string', description: 'Graph id. Omit to list the registered graphs.' },
         input: { type: 'object', description: 'Initial graph state, as a JSON object.', additionalProperties: true },
         thread: { type: 'string', description: 'Thread to continue. Omit to start a new durable thread.' },
+        checkpoint: {
+          type: 'string',
+          description: 'Checkpoint id to replay from. Requires `thread`; list them with langgraph_threads action "history".',
+        },
         resume: { description: 'Value handed to an interrupted graph, resuming it where it stopped.' },
         maxSteps: { type: 'integer', description: 'Upper bound on graph supersteps for this run.' },
         ...(backgroundEnabled ? {
@@ -990,16 +1110,20 @@ export function apply(ctx, config) {
 
   ctx.effect(() => ctx.tools.register({
     name: THREADS_TOOL,
-    description: 'List, inspect, or delete durable LangGraph threads. Threads of this session are listed by '
-      + 'default; `state` shows a thread\'s current values and what it is waiting on.',
+    description: 'List, inspect, time-travel, or delete durable LangGraph threads. Threads of this session are '
+      + 'listed by default; `state` shows a thread\'s values and what it waits on; `history` lists checkpoints; '
+      + '`edit` forks a checkpoint with new values, then replay it with langgraph_run({ checkpoint }).',
     parameters: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['list', 'state', 'delete'], description: 'Defaults to list.' },
-        graph: { type: 'string', description: 'Restrict to one graph id.' },
-        thread: { type: 'string', description: 'Thread id, required by state and delete.' },
+        action: { type: 'string', enum: ['list', 'state', 'history', 'edit', 'delete'], description: 'Defaults to list.' },
+        graph: { type: 'string', description: 'Graph id; required by state, history, and edit.' },
+        thread: { type: 'string', description: 'Thread id; required by state, history, edit, and delete.' },
+        checkpoint: { type: 'string', description: 'Checkpoint id for state, edit, or replay; defaults to the thread head.' },
+        values: { type: 'object', description: 'State fields to write in an edit, as a JSON object.', additionalProperties: true },
+        asNode: { type: 'string', description: 'Attribute an edit to this node, when the graph needs one.' },
         all: { type: 'boolean', description: 'List threads of every session, not only this one.' },
-        limit: { type: 'integer', description: 'Maximum threads to list (default 25).' },
+        limit: { type: 'integer', description: 'Maximum threads (default 25) or checkpoints (default 20) to return.' },
       },
       required: [],
       additionalProperties: false,

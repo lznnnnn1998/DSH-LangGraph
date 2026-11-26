@@ -6,7 +6,8 @@ Run a LangGraph graph from inside a DSH agent session, and continue it later.
 
 - `langgraph_run` — run a graph by id with an initial state. Omitting `graph` lists
   the registered graphs **with their input schemas**.
-- `langgraph_threads` — `list`, `state`, and `delete` durable threads.
+- `langgraph_threads` — `list`, `state`, `history`, `edit`, and `delete` durable threads.
+  A checkpoint can be inspected, forked with new values, and replayed.
 - **Durable threads.** Every superstep is checkpointed in a DSH storage domain
   (`langgraph_checkpoints`), so a thread survives the turn and the Host process. Pass
   `thread` back to continue it; a profile without `storageDomain` falls back to an
@@ -86,6 +87,29 @@ Inside a node, `getStore(config)` is LangGraph's `AsyncBatchedStore` wrapper ove
 - Long-term memory is separate from thread ownership: any run of any session sees the
   same namespaces. Namespace the data yourself (for example by user or workspace) when
   that matters.
+
+## Time travel
+
+Every checkpoint is addressable, so a thread is not a write-only log:
+
+```text
+langgraph_threads({ action: 'history', graph, thread })        → checkpoints, newest first
+langgraph_threads({ action: 'state', graph, thread, checkpoint }) → values, next, interrupts
+langgraph_threads({ action: 'edit', graph, thread, checkpoint, values }) → new checkpoint
+langgraph_run({ graph, thread, checkpoint })                    → replay from that snapshot
+```
+
+- `history` returns `checkpoint`, `step`, `source`, `createdAt`, `next`, and `paused` for
+  each snapshot, newest first; `limit` defaults to 20 (max 200).
+- `state` and `edit` default to the thread head. `edit` writes the given `values` on top
+  of that snapshot and returns the new checkpoint; `next` tells you what would run.
+- `langgraph_run({ checkpoint })` uses `checkpoint_id` instead of the thread head. With no
+  `input` or `resume` it runs that snapshot's pending tasks. A checkpoint whose `next` is
+  empty has nothing to run, so a replay is a no-op; pick one from `history` that lists
+  the node you want to rerun, or edit it first.
+- An edit creates a fork: the original checkpoints stay, and the thread head becomes the
+  fork when it is replayed. An unknown checkpoint id is rejected rather than treated as
+  an empty state.
 
 ## Trajectory trace
 

@@ -7,7 +7,8 @@ Current baseline:
 - GitHub `main` = `ea9bf42`; npm = `@lzn1998/dsh-langgraph@0.5.0`
 - `0.6.0` system-prompt graph list is committed in `537292d` (21 tests pass)
 - this plan is committed in `d8ab90e`
-- `0.7.0` BaseStore is implemented (34 tests pass); commit pending
+- `0.7.0` BaseStore is committed in `69051ac`
+- `0.8.0` time travel is implemented (37 tests pass); commit pending
 
 ## Per-version checklist
 For every version: implement → `npm test` → update docs/config → commit with author
@@ -30,10 +31,12 @@ explicit request or at the end of the batch.
 - Tests: store unit suite plus apply-level wiring (durable across runs, disabled path).
 - Commit: `feat: add durable LangGraph BaseStore`.
 
-## 0.8.0 — time travel / state edit / replay
+## 0.8.0 — time travel / state edit / replay (DONE, commit pending)
 - `langgraph_threads` actions: `history`, `edit`, `state` with `checkpoint`.
 - `langgraph_run({ checkpoint })` replays from a checkpoint.
-- Tests with a compiled graph + MemorySaver: run → history → edit → read → replay.
+- Unknown checkpoint ids are validated against the saver (`getState` synthesizes an
+  empty snapshot otherwise).
+- Tests: apply-level run → history → read checkpoint → edit → replay, plus errors.
 - Commit: `feat: add thread history, state edit and checkpoint replay`.
 
 ## 0.9.0 — checkpoint retention
