@@ -11,7 +11,8 @@ Current baseline:
 - `0.8.0` time travel is committed in `2178ba4`
 - `0.9.0` retention is committed in `13e3203`
 - `0.10.0` askUser is committed in `0f42f0a`
-- `0.11.0` topology is implemented (46 tests pass); commit pending
+- `0.11.0` topology is committed in `e265e03`
+- `0.12.0` ecosystem docs are written (46 tests pass); commit pending
 
 ## Per-version checklist
 For every version: implement → `npm test` → update docs/config → commit with author
@@ -66,9 +67,11 @@ explicit request or at the end of the batch.
 - Tests: node/edge shape, conditional edges, unknown graph.
 - Commit: `feat: expose graph topology for clients`.
 
-## 0.12.0 — ecosystem surface
-- Document `getStore()`, prebuilt imports, LangSmith env, retrieval/vector-store usage.
-- Add small helpers only where they remove real friction; no new runtime.
+## 0.12.0 — ecosystem surface (DONE, commit pending)
+- `docs/ECOSYSTEM.md`: bridge table, adding LangChain packages (single
+  `@langchain/core`), vector stores via a custom compiled graph, LangSmith env,
+  prebuilt agents, streaming seams, compatibility.
+- No new runtime: the existing helpers already cover the friction points.
 - Commit: `docs: document the LangChain ecosystem bridges`.
 
 ## 0.13.0 — client UI (separate package)

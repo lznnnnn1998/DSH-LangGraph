@@ -290,7 +290,9 @@ export function build({ StateGraph, Annotation, START, END, helpers }) {
 ```
 
 `build(api)` returns a `StateGraph` (preferred) or an already-compiled graph. The API
-object carries the LangGraph namespace, `helpers`, and `checkpointer`.
+object carries the LangGraph namespace, `helpers`, `checkpointer`, and `store`.
+Custom LangChain packages, vector stores, LangSmith, and streaming are covered in
+[ECOSYSTEM.md](ECOSYSTEM.md).
 
 On Node 24.22+ a `graphs/*.ts` module loads directly (Node's type stripping), so a typed
 graph needs no build step. Keep to erasable syntax: no `enum`, `namespace`, parameter

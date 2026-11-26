@@ -40,6 +40,8 @@ where it stopped.
   resume or delete them. Each thread keeps at most `retention` checkpoints (default 200;
   `0` keeps every checkpoint), with their writes pruned alongside.
 - See `docs/DETAIL.md` for the graph module contract, trace mapping, thread semantics, and limits.
+- See `docs/ECOSYSTEM.md` for adding LangChain packages, vector stores, prebuilt agents,
+  LangSmith tracing, and streaming.
 
 From npm: `dsh plugin --profile <name> add @lzn1998/dsh-langgraph`, then restart that
 profile's host. From a local checkout: `dsh plugin --profile <name> add <path-to-this-directory>`.
