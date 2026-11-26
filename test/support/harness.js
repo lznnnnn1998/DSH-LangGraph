@@ -55,6 +55,18 @@ export function createContext(storageDomain, options = {}) {
   const tools = new Map()
   const disposers = []
   const routes = new Map()
+  const sections = []
+  const systemPrompt = options.systemPrompt === true
+    ? {
+        section(definition) {
+          sections.push(definition)
+          return () => {}
+        },
+        getSectionOrder(name) {
+          return name === 'TOOL_SUBAGENT' ? 2800 : 2600
+        },
+      }
+    : undefined
   const connection = options.routes === true
     ? {
         fetch: {
@@ -67,6 +79,7 @@ export function createContext(storageDomain, options = {}) {
     : undefined
   const ctx = {
     routes,
+    sections,
     effect(factory) {
       const disposer = factory()
       if (typeof disposer === 'function') disposers.push(disposer)
@@ -79,6 +92,7 @@ export function createContext(storageDomain, options = {}) {
     get(service) {
       if (service === 'storageDomain') return storageDomain
       if (service === 'connection') return connection
+      if (service === 'systemPrompt') return systemPrompt
       return undefined
     },
     logger: { warn() {} },

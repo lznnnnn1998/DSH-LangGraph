@@ -27,8 +27,9 @@ where it stopped.
   listing; vector `query` search is rejected rather than faked. Without a storage domain
   it falls back to `InMemoryStore`; `config.store: false` passes no store at all.
 - **Model-facing guidance:** while loaded, a system-prompt section lists the registered
-  graph ids and descriptions, so the model can choose `langgraph_run` without first listing.
-  `config.prompt: false` disables it.
+  graph ids and descriptions, distinguishes `langgraph_run` from the `workflow` tool, and
+  tells the model to use a matching graph rather than reimplement it. `config.prompt: false`
+  disables it.
 - **Trajectory trace:** each run shows up as one `langgraph_run` row; its graph nodes, DSH
   tool calls, and model calls appear as nested sub-calls in **Trajectory** — `langgraph:node`,
   `langgraph:tool`, `langgraph:model`, `langgraph:subagent`. The trace uses DSH's log-only

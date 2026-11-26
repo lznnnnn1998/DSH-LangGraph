@@ -48,10 +48,16 @@ Run a LangGraph graph from inside a DSH agent session, and continue it later.
 
 While the plugin is active it registers a system-prompt section through DSH's public
 `ctx.systemPrompt.section` API — no DSH source change. The section names `langgraph_run`,
-says when to prefer it, and lists the registered graph ids with their one-line descriptions
-(up to 24; input schemas stay out of the prompt). The model therefore knows what exists
-without spending a discovery call; `langgraph_run` with no `graph` still returns the full
-list and input schemas.
+says explicitly that it is not the `workflow` tool, tells the model to call it when the
+user names a graph id or a request matches a graph description (rather than reimplementing
+it with bash/subagent), and lists the registered graph ids with their one-line
+descriptions (up to 24; input schemas stay out of the prompt). The model therefore knows
+what exists without spending a discovery call; `langgraph_run` with no `graph` still
+returns the full list and input schemas.
+
+- The section sits just before the subagent guidance, after the `workflow` tool's
+  "only when the user asks" rule. An earlier placement at `TOOL_WORKFLOW` made the two
+  "workflow" instructions read as one.
 
 - The registry is scanned when the plugin activates, so graph modules should keep top-level
   code side-effect free.

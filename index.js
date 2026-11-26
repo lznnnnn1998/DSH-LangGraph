@@ -134,15 +134,15 @@ function describeInput(entry) {
  * @returns {string} section text.
  */
 export function renderGraphPrompt(registry, ready) {
-  const intro = 'LangGraph workflows are available through the `langgraph_run` tool.'
+  const intro = 'LangGraph graphs are available through the `langgraph_run` tool.'
   if (!ready) {
-    return `${intro} Call it with no \`graph\` to list the registered workflows and their input schemas.`
+    return `${intro} Call it with no \`graph\` to list the registered graphs and their input schemas.`
   }
   const available = [...registry.values()]
     .filter(entry => entry.error === undefined)
     .sort((left, right) => left.id.localeCompare(right.id))
   if (available.length === 0) {
-    return `${intro}\n\nNo workflow is registered yet; call it with no \`graph\` to re-check.`
+    return `${intro}\n\nNo graph is registered yet; call it with no \`graph\` to re-check.`
   }
   const limit = 24
   const lines = available.slice(0, limit).map(entry => {
@@ -154,11 +154,15 @@ export function renderGraphPrompt(registry, ready) {
   }
   return [
     intro,
-    'Use it when a task benefits from durable multi-step execution, background runs, '
-      + 'interrupts/resume, or traced node/tool/model activity. '
-      + 'Use `langgraph_threads` to list, inspect, or delete durable threads.',
-    `Registered workflows:\n${lines.join('\n')}`,
-    'Omit `graph` to see each workflow\'s input schema.',
+    'This is not the `workflow` tool: `workflow` runs a generated JavaScript fan-out script, '
+      + 'while `langgraph_run` runs a graph module registered with this profile.',
+    'Call `langgraph_run` when the user names a graph id, or when a request clearly matches one '
+      + 'of the registered graph descriptions below; do not reimplement a matching graph with bash, '
+      + 'subagent, or ad-hoc steps. It is also the right tool when a task needs a durable thread, '
+      + 'a background run, interrupt/resume, checkpoint replay, long-term memory, or a traced '
+      + 'node/tool/model record. Use `langgraph_threads` to list, inspect, or delete durable threads.',
+    `Registered graphs:\n${lines.join('\n')}`,
+    'Omit `graph` to see each graph\'s input schema.',
   ].join('\n\n')
 }
 
@@ -1165,13 +1169,16 @@ export function apply(ctx, config) {
       void scan().then(() => { scannedReady = true }).catch(error => {
         ctx.logger?.warn(`langgraph: graph scan failed: ${error?.message ?? error}`)
       })
-      let order = 2600
+      // Sit after the `workflow` tool's "only when the user asks" rule and just
+      // before subagent guidance. The old TOOL_WORKFLOW slot put this section
+      // next to a second "workflow" rule, which read as one instruction.
+      let order = 2790
       try {
         if (typeof systemPrompt.getSectionOrder === 'function') {
-          order = systemPrompt.getSectionOrder('TOOL_WORKFLOW')
+          order = systemPrompt.getSectionOrder('TOOL_SUBAGENT') - 10
         }
       } catch {
-        // A future DSH may rename the order; 2600 is the tool-guidance band.
+        // A future DSH may rename the order; 2790 is just before subagents.
       }
       ctx.effect(() => systemPrompt.section({
         name: 'tool:langgraph',
@@ -1184,7 +1191,8 @@ export function apply(ctx, config) {
 
   ctx.effect(() => ctx.tools.register({
     name: RUN_TOOL,
-    description: 'Run a registered LangGraph workflow. Workflows coordinate work in this workspace: '
+    description: 'Run a registered LangGraph graph. This is not the `workflow` tool: call it when the user '
+      + 'names a graph id or a request matches a registered graph. Graphs coordinate work in this workspace: '
       + 'their nodes call the same tools you have, in this session and sandbox. Omit `graph` to list them '
       + 'with their input schemas. Threads are durable: pass `thread` to continue one, and `resume` to answer '
       + 'an interrupted graph. Set `run_in_background` to return a job id immediately; read it with '

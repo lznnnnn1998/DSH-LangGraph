@@ -16,6 +16,7 @@ Current release:
 - `0.11.0` topology is committed in `e265e03`
 - `0.12.0` ecosystem docs are committed in `4d869ed`
 - `0.13.0` client panel is committed in `a9ea4ef` and verified in Web
+- `0.13.1` prompt distinction is implemented (53 tests pass); commit pending
 - `0.14.0` sandbox worker is deferred after checking the sandbox surface (see below)
 
 ## Per-version checklist
@@ -89,6 +90,18 @@ explicit request or at the end of the batch.
 - Token-level streaming and action cards remain out of scope: streaming is not in the
   tool protocol, and HITL uses the native question UI (0.10.0).
 - Commit: `feat: add the LangGraph Web panel`.
+
+## 0.13.1 — prompt distinction (DONE)
+- Diagnosis from the live `lg` session: `langgraph_run` was in every request and the
+  graph list was in the system prompt. The final task still went to `subagent` because
+  no graph matched it and the user named subagent; the section also sat next to the
+  `workflow` tool's "ONLY when the user explicitly asks" rule and repeated the word
+  "workflow", making it easier to discount.
+- Renamed the intro to "LangGraph graphs", added "this is not the `workflow` tool", a
+  match rule ("name or description match → call it; do not reimplement with
+  bash/subagent"), and moved the section to `TOOL_SUBAGENT - 10`.
+- Tests: prompt text plus apply-level order/text (53 total).
+- Commit: `fix: distinguish LangGraph graphs from the workflow tool`.
 
 ## 0.14.0 — sandboxed graph worker (DEFERRED — not a small version)
 Checked against DSH 0.2.2-rc.5/0.2.3-alpha.2:
