@@ -617,6 +617,8 @@ M5 在 `executeRun` 外包一层 try/catch；节点包装器附加 `error.nodeId
 - forced coarse/fine：2.6–4.9x token、3.3–8.6x 时间；fine 触发 `literal-tool`/`model-then-tool`/`tiny-graph`；3 次先失败后 fork/重写恢复。
 - 最常见失败：verify 节点 `out: bool`，但生产者返回一句话；`describe` 现在明确 `bool` 严格语义和 `map.over` 应是受控列表。
 - 2026-11-27 大任务（12 topic + 人工 approve）：default 普通 loop 53s/124K 成功；forced coarse 4 节点 agent 图 1m38s/462K 成功，但 write 节点丢标题、模型手工修复；forced fine 在 19 steps/506K 时被停止，未产出——模型去读 harness/plugin 源码而不是用 `describe`。结论：该任务普通 loop 最优；强制细粒度图有害；保持放松 prompt/保守默认。
+- fine 失败的根因不是“模型爱读源码”，而是 `describe` 只有 gate 的字段名，缺少 map/gate/write 组合示例、gate resume/options 语义和 glob→lines→map 的说明；模型为补空白去读实现。修复：describe 增加 `map-gate-write` 完整示例、gate resume 规则、write 保真提示；map 错误带 hint；gate options+bool 加 warning；示例 gate 从 `bool` 改成 `text` + `eq`。
+- 小 fine e2e（3 topic）：模型 describe → compose（5 节点 map/gate/write）→ 按 lint 修 spec → run → gate → approve → 写 `small-fine.md`；**没有读源码**；1m3s/238K（含一次 glob 从 12 缩到 3 的 scope 修正），3 topic 正确。
 - 仍未测跨 turn 持久化/大规模 per-item model 且无法批量的任务；不据此收紧或继续放松 prompt。
 
 ## 13. 待定 / 风险

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { apply } from '../index.js'
+import { validateSpec } from '../compose/schema.js'
 import { createContext, createStorageDomain, exec } from './support/harness.js'
 
 function fixture(name) {
@@ -46,9 +47,17 @@ test('describes the IR without touching storage', async () => {
   assert.ok(result.nodes.subagent)
   assert.match(result.transformNotes.bool, /true/)
   assert.match(result.nodes.map.over, /list you control/)
+  assert.match(result.nodes.gate.resume, /interrupted/)
+  assert.ok(result.examples['map-gate-write'])
+  assert.ok(result.examples['map-gate-write'].nodes.some(node => node.do === 'map'))
+  assert.ok(result.examples['map-gate-write'].nodes.some(node => node.do === 'gate'))
   assert.ok(Array.isArray(result.guidance))
   assert.ok(result.guidance.some(line => /bool.*strict|strict.*bool/i.test(line)))
   assert.ok(result.guidance.some(line => /No files found/.test(line)))
+  assert.ok(result.guidance.some(line => /glob.*lines|lines.*map/i.test(line)))
+  assert.equal(validateSpec(result.example, { tools: ['glob'] }).ok, true)
+  const fullExample = validateSpec(result.examples['map-gate-write'], { tools: ['glob', 'read', 'write'] })
+  assert.equal(fullExample.ok, true, JSON.stringify(fullExample.errors))
   ctx.dispose()
 })
 

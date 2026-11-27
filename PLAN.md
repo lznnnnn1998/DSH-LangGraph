@@ -188,7 +188,12 @@ explicit request or at the end of the batch.
   its write node dropped headings and needed a manual fix; the forced fine run was
   stopped at 19 steps / 506K with no output after it started reading the harness/plugin
   source instead of using `describe`.
-- 159 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
+- The fine failure's root cause was the manual, not the model: `describe` lacked a
+  map/gate/write example and gate resume semantics. It now returns a full
+  `map-gate-write` example, explains gate options/labels and raw resume values, adds
+  glob→lines→map guidance, map error hints, and a gate options+bool warning. A small
+  3-topic fine e2e then composed and ran a 5-node map/gate graph without reading source.
+- 160 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
   the user's explicit go-ahead.
 
 ## 0.14.0 — sandboxed graph worker (DEFERRED — not a small version)

@@ -273,3 +273,35 @@ test('rejects parallel branches that write one field without a mergeable reducer
   assert.equal(result.ok, false)
   assert.ok(result.errors.some(error => error.path === 'state.all' && /parallel branches/.test(error.message)))
 })
+
+test('hints how to build a string[] for a map and warns about a bool gate with labels', () => {
+  const mapSpec = {
+    ir: 1,
+    state: {
+      items: { type: 'string', default: '' },
+      out: { type: 'string[]', default: [], reducer: 'append' },
+    },
+    nodes: [{
+      id: 'walk',
+      do: 'map',
+      over: 'items',
+      body: { do: 'tool', tool: 'glob', args: {}, out: { out: 'lines' } },
+    }],
+    edges: [{ from: 'START', to: 'walk' }, { from: 'walk', to: 'END' }],
+  }
+  const mapResult = validateSpec(mapSpec, { tools: ['glob'] })
+  assert.equal(mapResult.ok, false)
+  const overError = mapResult.errors.find(error => error.path === 'nodes[0].over')
+  assert.ok(overError)
+  assert.match(overError.hint, /lines/)
+
+  const gateSpec = {
+    ir: 1,
+    state: { approved: { type: 'boolean', default: false } },
+    nodes: [{ id: 'ask', do: 'gate', question: 'OK?', options: ['Approve', 'Reject'], out: { approved: 'bool' } }],
+    edges: [{ from: 'START', to: 'ask' }, { from: 'ask', to: 'END' }],
+  }
+  const gateResult = validateSpec(gateSpec)
+  assert.equal(gateResult.ok, true)
+  assert.ok(gateResult.warnings.some(warning => warning.code === 'gate-bool-options'))
+})

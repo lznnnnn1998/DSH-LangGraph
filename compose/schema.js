@@ -241,8 +241,13 @@ function validateAgainst(value, schema, path, problems) {
 export function validateSpec(input, options = {}) {
   const errors = []
   const warnings = []
-  const fail = (path, message, expected) => {
-    errors.push({ path, message, ...(expected === undefined ? {} : { expected }) })
+  const fail = (path, message, expected, hint) => {
+    errors.push({
+      path,
+      message,
+      ...(expected === undefined ? {} : { expected }),
+      ...(hint === undefined ? {} : { hint }),
+    })
   }
   const warn = (path, message, code) => {
     warnings.push({ path, message, code })
@@ -378,7 +383,7 @@ export function validateSpec(input, options = {}) {
       if (map) {
         const reducer = definition.reducer ?? 'replace'
         if (reducer === 'replace') {
-          fail(outPath, `a map body writes "${field}" concurrently; give the field a mergeable reducer`, 'append | add | max | min | merge')
+          fail(outPath, `a map body writes "${field}" concurrently; give the field a mergeable reducer`, 'append | add | max | min | merge', 'Declare the field with reducer "append" for a string[]/number[], or "merge" for json; text into string[] + append adds one element per item.')
           continue
         }
         if (!transformFitsMap(kind, definition.type)) {
@@ -704,9 +709,9 @@ export function validateSpec(input, options = {}) {
           } else {
             const over = stateFields.get(node.over)
             if (over === undefined) {
-              fail(`${path}.over`, `"${node.over}" is not a declared state field`, [...stateFields.keys()].sort().join(' | ') || undefined)
+              fail(`${path}.over`, `"${node.over}" is not a declared state field`, [...stateFields.keys()].sort().join(' | ') || undefined, 'To turn a glob result into files, put out: { files: "lines" } on the glob tool node and map over "files".')
             } else if (over.type !== 'string[]' && over.type !== 'number[]') {
-              fail(`${path}.over`, `"${node.over}" is ${over.type}; a map needs a string[] or number[] field`, 'string[] | number[]')
+              fail(`${path}.over`, `"${node.over}" is ${over.type}; a map needs a string[] or number[] field`, 'string[] | number[]', 'To turn a glob result into files, put out: { files: "lines" } on the glob tool node and map over "files".')
             }
           }
           if (node.maxItems !== undefined && (!Number.isInteger(node.maxItems) || node.maxItems < 1 || node.maxItems > LIMITS.maxMapItems)) {

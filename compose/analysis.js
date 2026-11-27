@@ -245,6 +245,14 @@ export function lintWarnings(spec, analysis) {
     }
   }
 
+  for (const node of spec.nodes ?? []) {
+    if (node.do !== 'gate' || !Array.isArray(node.options) || node.options.length === 0) continue
+    for (const [field, kind] of Object.entries(node.out ?? {})) {
+      if (kind !== 'bool') continue
+      warn(`nodes.${node.id}.out.${field}`, 'gate options are labels; bool accepts only true/false. Use out { decision: "text" } with an eq guard, or resume true/false.', 'gate-bool-options')
+    }
+  }
+
   const numericWriter = node => {
     const fields = []
     if (node?.out !== undefined) fields.push(...Object.keys(node.out))

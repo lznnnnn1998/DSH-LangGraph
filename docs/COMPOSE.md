@@ -120,6 +120,12 @@ A `$state` reference names a top-level field. A dotted path (`data.answer`) read
 `prompt` is an array of strings and `$state` references, concatenated exactly as written.
 `args` and `set.values` may contain nested literals and references.
 
+A `gate` pauses the run with `{ question, options, node }`; `langgraph_run` returns
+`status: "interrupted"` with the thread and interrupts. Ask the user, then resume the
+same thread with `resume: <raw answer>`. `options` are labels only; the resume value
+goes through `out`. For label answers use `out: { decision: "text" }` and an `eq` guard;
+`bool` accepts only `true`/`false`.
+
 ### Transforms
 
 The `out` map names state fields and how a node result becomes the value:
@@ -191,6 +197,11 @@ parent field named `item` or `index` is shadowed inside the body.
 
 - `over` must be a list you control. A tool result such as `No files found` is one
   string, not an empty list; check or guard it before mapping.
+- To map over files: a `glob` tool node with `out: { files: "lines" }` produces the
+  `string[]`; the body's `read` args use `{ path: { $state: "item" } }`, and
+  `out: { contents: "text" }` into a `string[]` with `append` adds one string per item.
+  `langgraph_compose({ action: "describe" })` returns this full pattern as the
+  `map-gate-write` example.
 - The body may be `tool`, `model`, `agent`, or `subagent`; no `gate`, no nested `map`.
 - Every body `out` field must use a mergeable reducer. `text`/`first` into
   `string[]` + `append` appends one string per item; `lines` appends an array; `number`

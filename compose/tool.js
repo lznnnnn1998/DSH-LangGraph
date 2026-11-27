@@ -39,7 +39,7 @@ const EXAMPLE = Object.freeze({
     pattern: { type: 'string', default: '**/*.js' },
     files: { type: 'string[]', default: [] },
     large: { type: 'boolean', default: false },
-    approved: { type: 'boolean', default: false },
+    decision: { type: 'string', default: '' },
   },
   nodes: [
     { id: 'scan', do: 'tool', tool: 'glob', args: { pattern: { $state: 'pattern' } }, out: { files: 'lines' } },
@@ -49,7 +49,7 @@ const EXAMPLE = Object.freeze({
       prompt: ['There are ', { $state: 'files' }, '. Is this a large project? Reply true or false.'],
       out: { large: 'bool' },
     },
-    { id: 'confirm', do: 'gate', question: 'Continue with this project?', out: { approved: 'bool' } },
+    { id: 'confirm', do: 'gate', question: 'Continue with this project?', options: ['Approve', 'Reject'], out: { decision: 'text' } },
   ],
   edges: [
     { from: 'START', to: 'scan' },
@@ -58,6 +58,53 @@ const EXAMPLE = Object.freeze({
     { from: 'judge', to: 'END', when: true },
     { from: 'confirm', to: 'END' },
   ],
+})
+
+/**
+ * A worked fine-grained spec: a glob becomes a string[], a map reads each file,
+ * a model joins the results, a gate asks for approval, and a write tool saves.
+ * This is the pattern to copy when a step is the contract.
+ */
+const MAP_GATE_WRITE_EXAMPLE = Object.freeze({
+  ir: 1,
+  name: 'map-gate-write',
+  description: 'List files, read them with a map, summarize, approve, and write.',
+  state: {
+    pattern: { type: 'string', default: '*.txt' },
+    files: { type: 'string[]', default: [] },
+    contents: { type: 'string[]', default: [], reducer: 'append' },
+    summary: { type: 'string', default: '' },
+    decision: { type: 'string', default: '' },
+  },
+  nodes: [
+    { id: 'list', do: 'tool', tool: 'glob', args: { pattern: { $state: 'pattern' } }, out: { files: 'lines' } },
+    {
+      id: 'read',
+      do: 'map',
+      over: 'files',
+      body: { do: 'tool', tool: 'read', args: { path: { $state: 'item' } }, out: { contents: 'text' } },
+    },
+    { id: 'join', do: 'model', prompt: ['Summarize these files:\n', { $state: 'contents' }], out: { summary: 'text' } },
+    { id: 'approve', do: 'gate', question: 'Write the summary?', options: ['Approve', 'Revise'], out: { decision: 'text' } },
+    {
+      id: 'write',
+      do: 'tool',
+      tool: 'write',
+      args: { path: '.lg-big/summary.md', content: { $state: 'summary' } },
+      out: {},
+    },
+  ],
+  edges: [
+    { from: 'START', to: 'list' },
+    { from: 'list', to: 'read' },
+    { from: 'read', to: 'join' },
+    { from: 'join', to: 'approve' },
+    { from: 'approve', to: 'write', when: { op: 'eq', args: [{ $state: 'decision' }, 'Approve'] } },
+    { from: 'approve', to: 'END', when: true },
+    { from: 'write', to: 'END' },
+  ],
+  output: ['summary', 'decision'],
+  maxSteps: 25,
 })
 
 /** Short IR topology for `validate`, which does not build a LangGraph. */
@@ -122,14 +169,15 @@ function describe() {
         id: 'string',
         do: 'gate',
         question: 'string',
-        'options?': 'array of option labels',
-        out: 'state field -> transform',
+        'options?': 'array of labels shown to the user; labels are not the resume value',
+        out: 'state field -> transform applied to the raw resume value',
+        resume: 'langgraph_run returns status "interrupted" with { thread, interrupts }; ask the user, then call langgraph_run({ graph, thread, resume: <raw answer> }). For label answers use out { decision: "text" } and an eq guard; bool accepts only true/false.',
       },
       map: {
         id: 'string',
         do: 'map',
         over: 'a string[] or number[] state field; it must be a list you control, and a tool result such as "No files found" is one string, not an empty list',
-        body: `one of ${MAP_BODY_KINDS.join(' | ')}; no gate and no nested map; a body id is optional and ignored`,
+        body: `one of ${MAP_BODY_KINDS.join(' | ')}; the body reads { $state: "item" } and { $state: "index" } and writes parent fields with mergeable reducers; a body id is optional and ignored`,
         'maxItems?': `integer 1..${LIMITS.maxMapItems}; default ${LIMITS.defaultMapItems}`,
         'maxConcurrency?': `integer 1..${LIMITS.maxMapConcurrency}; default ${LIMITS.defaultMaxConcurrency}`,
       },
@@ -158,6 +206,9 @@ function describe() {
     guards: GUARD_OPS,
     limits: LIMITS,
     example: EXAMPLE,
+    examples: {
+      'map-gate-write': MAP_GATE_WRITE_EXAMPLE,
+    },
     guidance: [
       'Coarse-first heuristic: 4-8 phase nodes is a good default, not a rule; the lint warns when a graph is too fine.',
       'Open work -> agent (a prose brief plus tools); one judgment -> model; a human decision -> gate; a known atomic action -> tool. Merge steps unless the step itself is the contract.',
@@ -165,9 +216,12 @@ function describe() {
       'Use { $state: "field" } references; dotted paths only enter json fields.',
       'A transform must fit the field type: text->string, lines->string[], json->json, bool->boolean, number->number, first->string, count->number.',
       '`bool` is strict: only a JSON boolean or the text "true"/"false". A verify node that returns a sentence should use `text` and a guard, or a `model` with a boolean schema.',
+      '`glob` returns text: add `out: { files: "lines" }` to make the `string[]` that `map.over` needs. A map body reads `{ $state: "item" }` and writes a parent field with a mergeable reducer; `out: { contents: "text" }` into a `string[]` with `append` adds one string per item.',
+      'A `gate` resumes with the raw answer. `options` are labels, not the resume value; for label answers use `out: { decision: "text" }` and an `eq` guard, for true/false use `bool`. The run returns `status: "interrupted"`; ask the user, then resume the same thread.',
       'Edges: one unconditional = sequence; conditional in order = choice (add a when:true fallback); two or more unconditional = static fan-out, and a node with multiple incoming edges waits for all of them.',
       'START has no incoming edges; END has no outgoing edges; do not mix conditional and unconditional out-edges from one node.',
       'Use map for dynamic fan-out over a string[] or number[] field. The body reads { $state: "item" } and { $state: "index" }; its out fields need append/add/max/min/merge reducers, and append order is the input order. `over` must be a list you control: a tool result such as "No files found" is one string, not an empty list.',
+      'For a write step, name the exact path and content/format in the node brief or args; an agent write may summarize instead of copying. The `map-gate-write` example is the full fine-grained pattern.',
       'Use subagent when the work deserves its own DSH session; prompt is the child task and schema asks for structured output.',
       'After a failure, read failedScc, upstream and downstream from the failure result. To change the graph, call fork with the failed node: it returns the downstream spec and the thread state; edit the spec, compose it, and run it with that state as input.',
       'A composed graph is immutable and session-owned: to change it, compose a new spec and start a new thread.',
