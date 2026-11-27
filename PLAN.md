@@ -179,6 +179,10 @@ explicit request or at the end of the batch.
 - Prompt relaxed to principles (seams, coarse graph, open work in `agent`); prompt tests
   assert tool names, boundaries, and the registry rather than sentences; numeric
   thresholds stay in the lint and `describe`.
+- A 10-run headless matrix showed the default prompt did not over-compose small tasks,
+  while forced coarse/fine graphs cost 2.6–4.9x tokens; `describe` now calls out the
+  strict `bool` transform and that `map.over` must be a controlled list. A real Web
+  session on a new `lgtest` profile/3085 passed compose → run.
 - 159 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
   the user's explicit go-ahead.
 

@@ -138,6 +138,10 @@ A transform must fit the field type. A `model` with a string `schema` may write 
 into a string field. A map body may additionally write a scalar into an array field with
 `append` (one element per item).
 
+`bool` is strict: it accepts a JSON boolean or the text `true`/`false` only. A verify node
+that returns a sentence should use `text` plus a guard, or a `model` with a boolean
+schema.
+
 A `model` or `subagent` `schema` is checked with a JSON Schema subset: `type`, `enum`,
 `const`, `required`, `properties`, `additionalProperties`, `items`, and min/max length,
 items, and numeric bounds. Other keywords (such as `pattern` or `$ref`) are ignored.
@@ -185,6 +189,8 @@ parent field named `item` or `index` is shadowed inside the body.
 }
 ```
 
+- `over` must be a list you control. A tool result such as `No files found` is one
+  string, not an empty list; check or guard it before mapping.
 - The body may be `tool`, `model`, `agent`, or `subagent`; no `gate`, no nested `map`.
 - Every body `out` field must use a mergeable reducer. `text`/`first` into
   `string[]` + `append` appends one string per item; `lines` appends an array; `number`

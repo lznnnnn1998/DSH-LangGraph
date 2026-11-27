@@ -44,8 +44,11 @@ test('describes the IR without touching storage', async () => {
   assert.ok(result.nodes.agent)
   assert.ok(result.nodes.map)
   assert.ok(result.nodes.subagent)
+  assert.match(result.transformNotes.bool, /true/)
+  assert.match(result.nodes.map.over, /list you control/)
   assert.ok(Array.isArray(result.guidance))
-  assert.ok(result.guidance.length > 0)
+  assert.ok(result.guidance.some(line => /bool.*strict|strict.*bool/i.test(line)))
+  assert.ok(result.guidance.some(line => /No files found/.test(line)))
   ctx.dispose()
 })
 

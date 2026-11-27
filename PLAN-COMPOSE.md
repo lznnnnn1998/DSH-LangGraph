@@ -16,7 +16,8 @@
 
 - 2026-11-27：M1 `5e12fca`、M2 `80d2ab9`、M3 `7aff06a`、M4 `203f10c` 已本地提交；M5（结构化失败 / 恢复 / fork / 报告 / 文档）本地完成并验证。
 - prompt/测试放松：always-on prompt 只留原则（接缝 / 粗粒度 / `agent` 留白），4–8 和节点类型映射移到 lint/`describe`；prompt 测试改为词汇/边界/结构断言。
-- 下一项：等用户明确同意后再 push / tag / 发 npm。
+- 私有矩阵 + Web e2e：矩阵见 §12.1；`lgtest`/3085 的真实 Web 会话跑通 compose → run；`describe` 补 bool/map 注释。
+- 下一项：compose-worthy 大任务，然后等用户明确同意再 push / tag / 发 npm。
 - 仍未 push、未打 tag、未发 npm。
 
 ## 1. 一句话
@@ -609,6 +610,14 @@ M5 在 `executeRun` 外包一层 try/catch；节点包装器附加 `error.nodeId
 - **过度确定化**：普通 agent loop vs 粗粒度图（agent）vs 细粒度图（tool）；成功率、token、时间、过度分解率。
 - **文档**：示例可跑。
 
+### 12.1 私有矩阵结果（2026-11-27）
+
+- `lgh` headless，10 runs（report 3 文件、fanout 8 文件、simple/simple2 1–2 步；plain/default/coarse/fine）。
+- 默认 prompt 在四个 default run 里都没有 compose，包括 8 文件 fanout；普通 loop 最便宜（report 9s/47k，fanout 7s/81k）。
+- forced coarse/fine：2.6–4.9x token、3.3–8.6x 时间；fine 触发 `literal-tool`/`model-then-tool`/`tiny-graph`；3 次先失败后 fork/重写恢复。
+- 最常见失败：verify 节点 `out: bool`，但生产者返回一句话；`describe` 现在明确 `bool` 严格语义和 `map.over` 应是受控列表。
+- 仍未测 compose-worthy 大任务（大量 item 且每项需要 model/tool，或跨 turn 持久化）；不据此收紧或继续放松 prompt。
+
 ## 13. 待定 / 风险
 
 - `fork` 放 M5 还是 M6。
@@ -621,7 +630,7 @@ M5 在 `executeRun` 外包一层 try/catch；节点包装器附加 `error.nodeId
 - 静态 fan-out 是否允许混条件边（v1 禁止）。
 - `agent`/`subagent` 是否 M4 或 M4.1。
 - 私有矩阵的范围。
-- 过度确定化：把每一步写成 `tool` 节点会压扁模型能力；用 `agent` + coarse-first + lint 防。若私有矩阵显示粗粒度图无优势，继续收紧 compose 触发。
+- 过度确定化：把每一步写成 `tool` 节点会压扁模型能力；用 `agent` + coarse-first + lint 防。2026-11-27 矩阵显示默认 prompt 不过度 compose；下一步用 compose-worthy 大任务验证是否欠 compose。
 - `langgraph_run` 无参是否列 composed spec（建议列）。
 - spec 的 `name` 是可选人类标签；id 是 hash。
 
