@@ -1,0 +1,42 @@
+{
+  "ir": 1,
+  "name": "scan-report",
+  "description": "Glob a pattern, judge whether the match set is large, and record a report.",
+  "state": {
+    "pattern": { "type": "string", "default": "**/*.js" },
+    "files": { "type": "string[]", "default": [] },
+    "verdict": { "type": "string", "default": "" },
+    "report": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    {
+      "id": "scan",
+      "do": "tool",
+      "tool": "glob",
+      "args": { "pattern": { "$state": "pattern" } },
+      "out": { "files": "lines" }
+    },
+    {
+      "id": "judge",
+      "do": "model",
+      "prompt": [
+        "A workspace scan found these files:\n",
+        { "$state": "files" },
+        "\n\nReply with exactly one word: large if there are more than 5 files, otherwise small."
+      ],
+      "out": { "verdict": "first" }
+    },
+    { "id": "large", "do": "set", "values": { "report": "large project" } },
+    { "id": "small", "do": "set", "values": { "report": "small project" } }
+  ],
+  "edges": [
+    { "from": "START", "to": "scan" },
+    { "from": "scan", "to": "judge" },
+    { "from": "judge", "to": "large", "when": { "op": "eq", "args": [{ "$state": "verdict" }, "large"] } },
+    { "from": "judge", "to": "small", "when": true },
+    { "from": "large", "to": "END" },
+    { "from": "small", "to": "END" }
+  ],
+  "output": ["files", "verdict", "report"],
+  "maxSteps": 20
+}

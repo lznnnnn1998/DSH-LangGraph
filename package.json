@@ -1,6 +1,6 @@
 {
   "name": "@lzn1998/dsh-langgraph",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "type": "module",
   "description": "Durable LangGraph graphs as DSH tools: register TS/JS graphs, advertise them in the system prompt, run, resume and time-travel them, give them durable long-term memory, ask the user in the native question UI, run them as background jobs, delegate to DSH subagents, trace every node/tool/model call in Trajectory, draw their topology in a Web panel, and let graph nodes call this session's own tools.",
   "repository": {
@@ -28,6 +28,7 @@
   "files": [
     "index.js",
     "index.d.ts",
+    "compose",
     "dsh-checkpointer.js",
     "dsh-chat-model.js",
     "dsh-store.js",

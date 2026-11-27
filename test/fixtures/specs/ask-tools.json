@@ -1,0 +1,24 @@
+{
+  "ir": 1,
+  "name": "ask-tools",
+  "description": "Answer a question about the workspace with a ReAct agent over glob and read.",
+  "state": {
+    "question": { "type": "string", "default": "What kind of project is this workspace?" },
+    "answer": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    {
+      "id": "react",
+      "do": "agent",
+      "prompt": [{ "$state": "question" }],
+      "tools": ["glob", "read"],
+      "out": { "answer": "text" }
+    }
+  ],
+  "edges": [
+    { "from": "START", "to": "react" },
+    { "from": "react", "to": "END" }
+  ],
+  "output": ["answer"],
+  "maxSteps": 30
+}

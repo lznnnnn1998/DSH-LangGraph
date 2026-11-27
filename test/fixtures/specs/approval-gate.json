@@ -1,0 +1,34 @@
+{
+  "ir": 1,
+  "name": "approval-gate",
+  "description": "Ask before scanning, then glob the approved pattern.",
+  "state": {
+    "pattern": { "type": "string", "default": "**/*.js" },
+    "approved": { "type": "boolean", "default": false },
+    "listing": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    {
+      "id": "confirm",
+      "do": "gate",
+      "question": "Scan the workspace for files matching **/*.js?",
+      "options": ["Approve", "Reject"],
+      "out": { "approved": "bool" }
+    },
+    {
+      "id": "scan",
+      "do": "tool",
+      "tool": "glob",
+      "args": { "pattern": { "$state": "pattern" } },
+      "out": { "listing": "text" }
+    }
+  ],
+  "edges": [
+    { "from": "START", "to": "confirm" },
+    { "from": "confirm", "to": "scan", "when": { "op": "eq", "args": [{ "$state": "approved" }, true] } },
+    { "from": "confirm", "to": "END", "when": true },
+    { "from": "scan", "to": "END" }
+  ],
+  "output": ["approved", "listing"],
+  "maxSteps": 20
+}

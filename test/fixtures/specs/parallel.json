@@ -1,0 +1,28 @@
+{
+  "ir": 1,
+  "name": "parallel-scan",
+  "description": "Read two files in one superstep and combine them.",
+  "state": {
+    "all": { "type": "string[]", "default": [], "reducer": "append" },
+    "summary": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    { "id": "left", "do": "tool", "tool": "read", "args": { "path": "a.txt" }, "out": { "all": "lines" } },
+    { "id": "right", "do": "tool", "tool": "read", "args": { "path": "b.txt" }, "out": { "all": "lines" } },
+    {
+      "id": "join",
+      "do": "model",
+      "prompt": ["Combine these lines into one sentence:\n", { "$state": "all" }],
+      "out": { "summary": "text" }
+    }
+  ],
+  "edges": [
+    { "from": "START", "to": "left" },
+    { "from": "START", "to": "right" },
+    { "from": "left", "to": "join" },
+    { "from": "right", "to": "join" },
+    { "from": "join", "to": "END" }
+  ],
+  "output": ["all", "summary"],
+  "maxSteps": 20
+}
