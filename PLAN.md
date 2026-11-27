@@ -213,6 +213,11 @@ explicit request or at the end of the batch.
   (and `write {file_path, content}`); `validate`/`compose` also check tool node args
   against the visible tool's parameters (required, additional properties, literal types)
   so this disagrees at compose time instead of inside a map.
+- With those fixes, the same fine task completed: 55s / 9 steps / 226K, a 7-node IR graph
+  (list, map read x12, map extract x12, outline, gate, compose, write), 11 supersteps,
+  and 12 correct rows. It used about half the coarse graph's tokens (462K) and slightly
+  more than the default loop (124K / 53s). The earlier "fine is harmful" result was the
+  manual and validation, not the fine graph.
 - 162 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
   the user's explicit go-ahead.
 
