@@ -137,6 +137,10 @@ A transform must fit the field type. A `model` with a string `schema` may write 
 into a string field. A map body may additionally write a scalar into an array field with
 `append` (one element per item).
 
+A `model` or `subagent` `schema` is checked with a JSON Schema subset: `type`, `enum`,
+`const`, `required`, `properties`, `additionalProperties`, `items`, and min/max length,
+items, and numeric bounds. Other keywords (such as `pattern` or `$ref`) are ignored.
+
 ### Guards
 
 `when` is `true`, `false`, or `{ "op": "...", "args": [...] }` with one of `eq`, `ne`,
