@@ -1,0 +1,64 @@
+{
+  "ir": 1,
+  "name": "incident-triage",
+  "description": "Read logs, classify the incident, ask whether to page, and write a triage note.",
+  "state": {
+    "pattern": { "type": "string", "default": "logs/*.log" },
+    "files": { "type": "string[]", "default": [] },
+    "logs": { "type": "string[]", "default": [], "reducer": "append" },
+    "triage": { "type": "string", "default": "" },
+    "decision": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    {
+      "id": "list",
+      "do": "tool",
+      "tool": "glob",
+      "args": { "pattern": { "$state": "pattern" } },
+      "out": { "files": "lines" }
+    },
+    {
+      "id": "read",
+      "do": "map",
+      "over": "files",
+      "maxConcurrency": 8,
+      "body": {
+        "do": "tool",
+        "tool": "read",
+        "args": { "file_path": { "$state": "item" } },
+        "out": { "logs": "text" }
+      }
+    },
+    {
+      "id": "classify",
+      "do": "model",
+      "prompt": ["Triage these logs: likely cause, confidence, and the next check.\n", { "$state": "logs" }],
+      "out": { "triage": "text" }
+    },
+    {
+      "id": "page",
+      "do": "gate",
+      "question": "Page the on-call engineer?",
+      "options": ["Page", "No"],
+      "out": { "decision": "text" }
+    },
+    {
+      "id": "write",
+      "do": "tool",
+      "tool": "write",
+      "args": { "file_path": "triage.md", "content": { "$state": "triage" } },
+      "out": {}
+    }
+  ],
+  "edges": [
+    { "from": "START", "to": "list" },
+    { "from": "list", "to": "read" },
+    { "from": "read", "to": "classify" },
+    { "from": "classify", "to": "page" },
+    { "from": "page", "to": "write", "when": { "op": "eq", "args": [{ "$state": "decision" }, "Page"] } },
+    { "from": "page", "to": "END", "when": true },
+    { "from": "write", "to": "END" }
+  ],
+  "output": ["triage", "decision"],
+  "maxSteps": 20
+}

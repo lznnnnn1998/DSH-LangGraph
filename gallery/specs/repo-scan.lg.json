@@ -1,0 +1,54 @@
+{
+  "ir": 1,
+  "name": "repo-scan",
+  "description": "Scan a set of source files in parallel and write one review.",
+  "state": {
+    "pattern": { "type": "string", "default": "src/**/*.js" },
+    "files": { "type": "string[]", "default": [] },
+    "snippets": { "type": "string[]", "default": [], "reducer": "append" },
+    "report": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    {
+      "id": "list",
+      "do": "tool",
+      "tool": "glob",
+      "args": { "pattern": { "$state": "pattern" } },
+      "out": { "files": "lines" }
+    },
+    {
+      "id": "read",
+      "do": "map",
+      "over": "files",
+      "maxConcurrency": 8,
+      "body": {
+        "do": "tool",
+        "tool": "read",
+        "args": { "file_path": { "$state": "item" } },
+        "out": { "snippets": "text" }
+      }
+    },
+    {
+      "id": "review",
+      "do": "model",
+      "prompt": ["Review these source files. Give the main risks and the smallest next action:\n", { "$state": "snippets" }],
+      "out": { "report": "text" }
+    },
+    {
+      "id": "write",
+      "do": "tool",
+      "tool": "write",
+      "args": { "file_path": "scan-report.md", "content": { "$state": "report" } },
+      "out": {}
+    }
+  ],
+  "edges": [
+    { "from": "START", "to": "list" },
+    { "from": "list", "to": "read" },
+    { "from": "read", "to": "review" },
+    { "from": "review", "to": "write" },
+    { "from": "write", "to": "END" }
+  ],
+  "output": ["report"],
+  "maxSteps": 20
+}

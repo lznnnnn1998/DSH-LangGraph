@@ -1,0 +1,51 @@
+{
+  "ir": 1,
+  "name": "approval-plan",
+  "description": "Plan with tools, ask for approval, execute the plan, and write the result.",
+  "state": {
+    "request": { "type": "string", "default": "Prepare the release notes for the next version." },
+    "plan": { "type": "string", "default": "" },
+    "decision": { "type": "string", "default": "" },
+    "result": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    {
+      "id": "planner",
+      "do": "agent",
+      "prompt": ["Plan this request before doing it. Read only what you need; return a short numbered plan.\nRequest:\n", { "$state": "request" }],
+      "tools": ["glob", "read"],
+      "out": { "plan": "text" }
+    },
+    {
+      "id": "approve",
+      "do": "gate",
+      "question": "Approve this plan before execution?",
+      "options": ["Approve", "Revise"],
+      "out": { "decision": "text" }
+    },
+    {
+      "id": "execute",
+      "do": "agent",
+      "prompt": ["Execute the approved plan and return the result.\nPlan:\n", { "$state": "plan" }],
+      "tools": ["bash", "read", "write"],
+      "out": { "result": "text" }
+    },
+    {
+      "id": "write",
+      "do": "tool",
+      "tool": "write",
+      "args": { "file_path": "release.md", "content": { "$state": "result" } },
+      "out": {}
+    }
+  ],
+  "edges": [
+    { "from": "START", "to": "planner" },
+    { "from": "planner", "to": "approve" },
+    { "from": "approve", "to": "execute", "when": { "op": "eq", "args": [{ "$state": "decision" }, "Approve"] } },
+    { "from": "approve", "to": "END", "when": true },
+    { "from": "execute", "to": "write" },
+    { "from": "write", "to": "END" }
+  ],
+  "output": ["plan", "result", "decision"],
+  "maxSteps": 25
+}

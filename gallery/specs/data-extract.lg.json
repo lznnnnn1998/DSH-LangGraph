@@ -1,0 +1,75 @@
+{
+  "ir": 1,
+  "name": "data-extract",
+  "description": "Extract one JSON record per file and write a single JSON array.",
+  "state": {
+    "pattern": { "type": "string", "default": "data/*.txt" },
+    "files": { "type": "string[]", "default": [] },
+    "contents": { "type": "string[]", "default": [], "reducer": "append" },
+    "records": { "type": "string[]", "default": [], "reducer": "append" },
+    "json": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    {
+      "id": "list",
+      "do": "tool",
+      "tool": "glob",
+      "args": { "pattern": { "$state": "pattern" } },
+      "out": { "files": "lines" }
+    },
+    {
+      "id": "read",
+      "do": "map",
+      "over": "files",
+      "maxConcurrency": 8,
+      "body": {
+        "do": "tool",
+        "tool": "read",
+        "args": { "file_path": { "$state": "item" } },
+        "out": { "contents": "text" }
+      }
+    },
+    {
+      "id": "extract",
+      "do": "map",
+      "over": "contents",
+      "maxConcurrency": 8,
+      "body": {
+        "do": "model",
+        "prompt": ["Return one compact JSON object for this record; no prose.\n", { "$state": "item" }],
+        "schema": {
+          "type": "object",
+          "required": ["id", "value"],
+          "properties": {
+            "id": { "type": "string" },
+            "value": { "type": "number" }
+          }
+        },
+        "out": { "records": "text" }
+      }
+    },
+    {
+      "id": "join",
+      "do": "model",
+      "prompt": ["Merge these JSON objects into one valid JSON array. Return the array only.\n", { "$state": "records" }],
+      "out": { "json": "text" }
+    },
+    {
+      "id": "write",
+      "do": "tool",
+      "tool": "write",
+      "args": { "file_path": "records.json", "content": { "$state": "json" } },
+      "out": {}
+    }
+  ],
+  "edges": [
+    { "from": "START", "to": "list" },
+    { "from": "list", "to": "read" },
+    { "from": "read", "to": "extract" },
+    { "from": "extract", "to": "join" },
+    { "from": "join", "to": "write" },
+    { "from": "write", "to": "END" }
+  ],
+  "output": ["json"],
+  "maxSteps": 20
+}

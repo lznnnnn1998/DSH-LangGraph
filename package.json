@@ -37,6 +37,7 @@
     "graphs",
     "locale",
     "docs",
+    "gallery",
     "lib/client.js",
     "client/index.tsx",
     "scripts/build-client.mjs",

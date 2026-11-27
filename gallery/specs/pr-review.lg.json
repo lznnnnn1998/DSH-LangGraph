@@ -1,0 +1,49 @@
+{
+  "ir": 1,
+  "name": "pr-review",
+  "description": "Read the current diff, draft a review, ask for approval, and write it.",
+  "state": {
+    "diff": { "type": "string", "default": "" },
+    "review": { "type": "string", "default": "" },
+    "decision": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    {
+      "id": "read_diff",
+      "do": "tool",
+      "tool": "bash",
+      "args": { "command": "git diff --stat && git diff --no-ext-diff" },
+      "out": { "diff": "text" }
+    },
+    {
+      "id": "draft_review",
+      "do": "model",
+      "prompt": ["Review this diff. List only concrete correctness risks; say none if there are none.\n", { "$state": "diff" }],
+      "out": { "review": "text" }
+    },
+    {
+      "id": "approve",
+      "do": "gate",
+      "question": "Post this review?",
+      "options": ["Approve", "Revise"],
+      "out": { "decision": "text" }
+    },
+    {
+      "id": "write",
+      "do": "tool",
+      "tool": "write",
+      "args": { "file_path": "review.md", "content": { "$state": "review" } },
+      "out": {}
+    }
+  ],
+  "edges": [
+    { "from": "START", "to": "read_diff" },
+    { "from": "read_diff", "to": "draft_review" },
+    { "from": "draft_review", "to": "approve" },
+    { "from": "approve", "to": "write", "when": { "op": "eq", "args": [{ "$state": "decision" }, "Approve"] } },
+    { "from": "approve", "to": "END", "when": true },
+    { "from": "write", "to": "END" }
+  ],
+  "output": ["review", "decision"],
+  "maxSteps": 20
+}
