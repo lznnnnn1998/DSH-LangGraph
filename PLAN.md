@@ -198,6 +198,9 @@ explicit request or at the end of the batch.
   source reading. `json` fields with default `[]` now accept `append`; `describe` returns
   `reducerNotes` and a `map-extract` example; docs state that `merge` does not
   concatenate arrays.
+- A third big fine attempt doubted the `read` tool args. `describe` and docs now state
+  that a tool node's args pass through unchanged and name `glob {pattern}`,
+  `read {path}`, `write {path, content}`.
 - 161 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
   the user's explicit go-ahead.
 

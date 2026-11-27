@@ -210,7 +210,7 @@ function describe() {
         id: 'string',
         do: 'tool',
         tool: 'a tool visible to this agent',
-        args: 'object of JSON literals, or { $state: "field" } references',
+        args: 'passed unchanged to the DSH tool: use the tool\'s own argument names (glob {pattern}, read {path}, write {path, content}); values may be JSON literals or { $state: "field" } references',
         out: 'state field -> transform',
       },
       model: {
@@ -285,6 +285,7 @@ function describe() {
       'Edges: one unconditional = sequence; conditional in order = choice (add a when:true fallback); two or more unconditional = static fan-out, and a node with multiple incoming edges waits for all of them.',
       'START has no incoming edges; END has no outgoing edges; do not mix conditional and unconditional out-edges from one node.',
       'Use map for dynamic fan-out over a string[] or number[] field. The body reads { $state: "item" } and { $state: "index" }; its out fields need append/add/max/min/merge reducers, and append order is the input order. `over` must be a list you control: a tool result such as "No files found" is one string, not an empty list.',
+      'A tool node\'s args are the exact args you would pass to the DSH tool directly; the compiler does not rename them. A map body uses { $state: "item" } where an arg expects the item, e.g. read { path: { $state: "item" } }.',
       'To collect one JSON object per item, declare `json` with default [] and reducer append; a model body\'s out { extracts: "json" } appends one object per item. `merge` is for merging objects into one, not collecting a list; it does not concatenate arrays. The `map-extract` example is this pattern.',
       'For a write step, name the exact path and content/format in the node brief or args; an agent write may summarize instead of copying. The `map-gate-write` example is the full fine-grained pattern.',
       'Use subagent when the work deserves its own DSH session; prompt is the child task and schema asks for structured output.',

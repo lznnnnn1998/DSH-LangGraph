@@ -121,7 +121,10 @@ A `$state` reference names a top-level field. A dotted path (`data.answer`) read
 | `map` | `over`, `body`, `maxItems?`, `maxConcurrency?` | Dynamic fan-out over a `string[]` or `number[]` field. |
 
 `prompt` is an array of strings and `$state` references, concatenated exactly as written.
-`args` and `set.values` may contain nested literals and references.
+`args` and `set.values` may contain nested literals and references. A tool node's `args`
+are passed unchanged to the DSH tool; use the tool's own argument names (`glob {pattern}`,
+`read {path}`, `write {path, content}`). A map body can put `{ $state: "item" }` anywhere
+an arg expects the item.
 
 A `gate` pauses the run with `{ question, options, node }`; `langgraph_run` returns
 `status: "interrupted"` with the thread and interrupts. Ask the user, then resume the
