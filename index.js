@@ -175,11 +175,15 @@ export function renderGraphPrompt(registry, ready) {
     + 'They are not the `workflow` tool (`workflow` runs an ad-hoc JavaScript fan-out script).'
   const composeGuidance = [
     'Compose when the work has seams that should not be re-decided every turn: it must survive across '
-      + 'turns, fan out and aggregate, pause for a human, or retry at a boundary. Otherwise stay in the '
-      + 'ordinary loop; prefer a registered graph when one matches.',
-    'Keep the graph coarse: put open-ended work in an `agent` node and let its brief carry the detail; '
-      + 'use a smaller node only when that step is itself the contract. Put "how" in the brief and '
-      + '"what/when" in the edges.',
+      + 'turns, fan out and aggregate, pause for a human, or retry at a boundary. A composed graph is a '
+      + 'contract: state is the ledger between seams, nodes are roles, edges are handoffs. Otherwise stay '
+      + 'in the ordinary loop; prefer a registered graph when one matches.',
+    'Start from the ledger and the seams, not the boxes. Keep the graph coarse: put open-ended work in '
+      + 'an `agent` node and let its brief carry the detail; use a smaller node only when that step is '
+      + 'itself the contract. Put "how" in the brief and "what/when" in the edges.',
+    'Before the first compose, call `langgraph_compose({ action: "describe" })` and read its guide first: '
+      + 'it is the whole contract, followed by the reference and archetype examples. The compiler is '
+      + 'deterministic and never uses a model to translate the IR.',
     'A composed graph is an immutable session-owned spec, not a file and not a DSH Session; change it '
       + 'by composing a new spec. It does not appear in the registered list: call '
       + '`langgraph_compose({ action: "list" })` or `langgraph_run` with no graph. Use ordinary DSH tools '
@@ -1584,9 +1588,9 @@ export function apply(ctx, config) {
   ctx.effect(() => ctx.tools.register({
     name: COMPOSE_TOOL,
     description: 'Compose a session-owned LangGraph graph from a strict JSON GraphSpec, then run it with '
-      + '`langgraph_run`. Actions: `describe` (the IR manual and a minimal example), `validate`, '
-      + '`compose`, `list`, `get`, `delete`, `fork`. Call `describe` before the first compose. Keep the '
-      + 'graph coarse; open-ended work belongs in an `agent` node. A composed graph is an immutable '
+      + '`langgraph_run`. Actions: `describe` (the guide, reference and archetype examples), `validate`, '
+      + '`compose`, `list`, `get`, `delete`, `fork`. Read the guide before the first compose; it is the '
+      + 'whole contract. Keep the graph coarse; open-ended work belongs in an `agent` node. A composed graph is an immutable '
       + 'session spec, not a file and not a DSH Session. After a failure, `fork` from the failed node '
       + 'returns an editable downstream spec.',
     parameters: {

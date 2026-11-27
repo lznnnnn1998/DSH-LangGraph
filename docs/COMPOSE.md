@@ -14,6 +14,20 @@ The division of labour is deliberate:
 - **The compiler owns translation** — JSON to `StateGraph`, with no model, no randomness,
   and no I/O. The same spec always produces the same graph.
 
+## How to think about a composed graph
+
+The model-facing `describe` reply starts with a guide. Treat it as the contract, not a
+field list. In one paragraph: a graph is a contract about seams; the state is the ledger
+that survives a seam, a node is a role that files one result, an edge is a handoff, a map
+is one role repeated over a list, a gate is a signature, and a transform is the form a
+result takes when filed. Start from the ledger and the seams, not the boxes; keep the
+graph coarse, and split only where a step itself is the contract. The ledger's types and
+reducers are its rules — a json field with default `[]` and `append` collects one object
+per item, while `merge` shallow-merges one object and does not concatenate arrays. Tool
+args pass through unchanged, a gate resumes with the raw answer, and a compiler rejection
+is a disagreement between the ledger and the contract, not a reason to read the compiler.
+The reference below is the exact vocabulary; the examples are archetypes, not templates.
+
 ## When to compose, and when not to
 
 Compose when the task has:

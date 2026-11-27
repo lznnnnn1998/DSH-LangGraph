@@ -166,6 +166,80 @@ const MAP_EXTRACT_EXAMPLE = Object.freeze({
   output: ['extracts', 'outline'],
 })
 
+/**
+ * The model-facing manual. The guide teaches the whole contract; the reference
+ * below is the vocabulary and the examples are archetypes. Read it in that order.
+ */
+const GUIDE = `
+A composed graph is a contract about seams.
+
+You are the author, not the compiler. You are writing down what must remain true between
+the moments that cannot be undone: a file has been read, a judgment has been made, a
+human has signed, a list has been worked through. The state is the ledger that survives
+those moments. A node is a role that reads the ledger and files one result. An edge is a
+handoff: it says which role may act next, or which question decides the route. A map is
+one role repeated over a list. A gate is a signature. A transform is the form a result
+takes when it is filed. The compiler is a clerk: it turns your contract into a LangGraph
+exactly as written, with no interpretation, no model and no creativity. Write it so a
+careful colleague could execute it without asking what you meant.
+
+Start from the ledger, not the boxes. Ask what must still be true after each phase: the
+files that were found, the extracted facts, the outline, the decision, the text that will
+be written. Those are state fields. Give each field the type that describes its shape and
+the reducer that describes how many writers may settle it. replace is one writer. append
+is a list of contributions. add, max and min are numeric claims. merge is a shallow merge
+of one object. A list of per-item objects is a json field with default [] and append;
+merge is for a single object and does not concatenate arrays. If a field has many writers,
+a map body or parallel branches, its reducer must accept many contributions. A map body
+that writes a replace field is a contradiction, not a style choice.
+
+Then find the seams. A seam is a place where the next step cannot be decided in advance:
+a judgment that changes the route, a list that must be worked in parallel, a human
+signature, a pause that must survive a restart. Seams are the only reasons to draw an
+edge. Everything between two seams is one role. Put open-ended work in an agent's prose
+brief; let the role carry the detail. A fine graph is justified only when the step itself
+is the contract; otherwise the graph is a ceremony around a loop. Start coarse; split only
+where a seam demands it.
+
+The ledger has a small vocabulary: string, number, boolean, json, string[], number[]. The
+forms are the boundary between a role's result and the ledger: text for a sentence, lines
+for a list, json for structure, bool for a yes/no, number, count and first for scalars.
+Choose the form that preserves what the next role needs. If you want a new form, you
+probably want a different state shape instead. A tool node is a direct call: its args are
+the DSH tool's own args, passed through unchanged (glob {pattern}, read {path}, write
+{path, content}). The compiler does not rename or wrap them. A model node is one judgment;
+an agent node is an open brief with tools; a subagent is a separate session; a gate is a
+signature. A gate pauses with a question and option labels; the answer is raw and goes
+through out. For a label answer, file text and let an eq guard route; for a yes/no, file
+bool. The options are labels, not the answer. The run returns status interrupted with the
+thread and interrupts; ask the user, then resume the same thread with
+langgraph_run({ graph, thread, resume: <raw answer> }).
+
+Edges are the only control flow. One unconditional edge is a sequence. Conditional edges
+are a choice, evaluated in order, and need a when: true fallback; without one, a run with
+no match fails. Two or more unconditional edges are a static fan-out; a node with several
+incoming edges waits for all of them. A cycle is a loop: give it a way out and a budget
+(maxSteps); if the loop is the work, treat the whole SCC as one recovery unit. A map is
+implicit fan-out: you author the role and the edges; the compiler expands dispatch, body
+and join. The body reads item and index, and its out fields are transactions into
+mergeable parent fields; append follows input order, not completion order. An empty list
+still sends a sentinel so the join runs; the contract continues with the defaults.
+
+When the compiler rejects a spec, it is not asking you to debug the compiler; it is
+telling you that the ledger and the contract disagree. Read the IR path, then ask the
+four questions: is the state shape right, is this a seam or a role, is the role's result
+in the right form, and does the field accept this many writers? The error's hint names the
+archetype. When a run fails, the failure result names the failed seam, its cycle, the
+upstream that succeeded, the downstream that waits, and the checkpoint. Resume a
+transient; edit and replay a state error; fork the downstream for a graph bug. The runtime
+never rewrites a spec; a changed contract is a new spec and a new thread.
+
+The reference below is the exact vocabulary. The examples are archetypes, not templates:
+copy the shape, not the names. If a case is not in them, reason from the ledger, the
+seams, the roles and the forms. The plugin's source is an implementation of this
+contract, not a second manual.
+`.trim()
+
 /** Short IR topology for `validate`, which does not build a LangGraph. */
 function irTopology(spec) {
   return {
@@ -186,113 +260,96 @@ function irTopology(spec) {
 function describe() {
   return {
     ir: IR_VERSION,
-    topLevel: {
-      ir: IR_VERSION,
-      'name?': 'non-empty human label; part of the content id',
-      'description?': 'non-empty human label; part of the content id',
-      state: 'object: field name -> StateField',
-      nodes: `array of 1..${LIMITS.nodes} nodes`,
-      edges: `array of 1..${LIMITS.edges} edges`,
-      'output?': 'state field names returned to the caller; omit for all fields',
-      'maxSteps?': `integer 1..${LIMITS.maxSteps}; default ${LIMITS.defaultMaxSteps}`,
+    guide: GUIDE,
+    reference: {
+      topLevel: {
+        ir: IR_VERSION,
+        'name?': 'non-empty human label; part of the content id',
+        'description?': 'non-empty human label; part of the content id',
+        state: 'object: field name -> StateField',
+        nodes: `array of 1..${LIMITS.nodes} nodes`,
+        edges: `array of 1..${LIMITS.edges} edges`,
+        'output?': 'state field names returned to the caller; omit for all fields',
+        'maxSteps?': `integer 1..${LIMITS.maxSteps}; default ${LIMITS.defaultMaxSteps}`,
+      },
+      stateField: {
+        type: STATE_TYPES,
+        default: 'required; must match the type',
+        'reducer?': `${REDUCERS.join(' | ')}; replace is the default`,
+      },
+      nodes: {
+        tool: {
+          id: 'string',
+          do: 'tool',
+          tool: 'a tool visible to this agent',
+          args: 'passed unchanged to the DSH tool: use the tool\'s own argument names (glob {pattern}, read {path}, write {path, content}); values may be JSON literals or { $state: "field" } references',
+          out: 'state field -> transform',
+        },
+        model: {
+          id: 'string',
+          do: 'model',
+          prompt: 'array of strings and { $state: "field" } references',
+          'system?': 'string',
+          'schema?': 'JSON Schema for a JSON reply',
+          out: 'state field -> transform',
+        },
+        agent: {
+          id: 'string',
+          do: 'agent',
+          prompt: 'array of strings and { $state: "field" } references; a prose brief',
+          tools: 'tool names visible to this agent',
+          out: 'state field -> transform',
+        },
+        gate: {
+          id: 'string',
+          do: 'gate',
+          question: 'string',
+          'options?': 'array of labels shown to the user; labels are not the answer',
+          out: 'state field -> transform applied to the raw resume value',
+        },
+        map: {
+          id: 'string',
+          do: 'map',
+          over: 'a string[] or number[] state field; it must be a list you control, and a tool result such as "No files found" is one string, not an empty list',
+          body: `one of ${MAP_BODY_KINDS.join(' | ')}; the body reads { $state: "item" } and { $state: "index" } and writes parent fields with mergeable reducers; a body id is optional and ignored`,
+          'maxItems?': `integer 1..${LIMITS.maxMapItems}; default ${LIMITS.defaultMapItems}`,
+          'maxConcurrency?': `integer 1..${LIMITS.maxMapConcurrency}; default ${LIMITS.defaultMaxConcurrency}`,
+        },
+        set: {
+          id: 'string',
+          do: 'set',
+          values: 'object of JSON literals or { $state: "field" } references',
+        },
+        subagent: {
+          id: 'string',
+          do: 'subagent',
+          prompt: 'array of strings and { $state: "field" } references; the child gets its own DSH session',
+          'schema?': 'JSON Schema for structured output',
+          out: 'state field -> transform',
+        },
+      },
+      edge: {
+        from: 'START or a node id',
+        to: 'a node id or END',
+        'when?': 'true | false | { op, args }',
+      },
+      transforms: {
+        text: 'string',
+        lines: 'string[]',
+        json: 'json',
+        bool: 'boolean (JSON true/false or the text "true"/"false")',
+        number: 'number',
+        first: 'first line or item (string)',
+        count: 'number of lines or items (number)',
+      },
+      guards: GUARD_OPS,
+      limits: LIMITS,
     },
-    stateField: {
-      type: STATE_TYPES,
-      default: 'required; must match the type',
-      'reducer?': `${REDUCERS.join(' | ')}; replace is the default; a json list uses append with default []`,
-    },
-    reducerNotes: {
-      append: 'For arrays; a json field with default [] + append collects one value per item (objects included).',
-      merge: 'Shallow-merges json objects ({...left, ...right}); it does not concatenate arrays. Use append + default [] to collect a list.',
-    },
-    nodes: {
-      tool: {
-        id: 'string',
-        do: 'tool',
-        tool: 'a tool visible to this agent',
-        args: 'passed unchanged to the DSH tool: use the tool\'s own argument names (glob {pattern}, read {path}, write {path, content}); values may be JSON literals or { $state: "field" } references',
-        out: 'state field -> transform',
-      },
-      model: {
-        id: 'string',
-        do: 'model',
-        prompt: 'array of strings and { $state: "field" } references',
-        'system?': 'string',
-        'schema?': 'JSON Schema for a JSON reply',
-        out: 'state field -> transform',
-      },
-      agent: {
-        id: 'string',
-        do: 'agent',
-        prompt: 'array of strings and { $state: "field" } references; a prose brief',
-        tools: 'tool names visible to this agent',
-        out: 'state field -> transform',
-      },
-      gate: {
-        id: 'string',
-        do: 'gate',
-        question: 'string',
-        'options?': 'array of labels shown to the user; labels are not the resume value',
-        out: 'state field -> transform applied to the raw resume value',
-        resume: 'langgraph_run returns status "interrupted" with { thread, interrupts }; ask the user, then call langgraph_run({ graph, thread, resume: <raw answer> }). For label answers use out { decision: "text" } and an eq guard; bool accepts only true/false.',
-      },
-      map: {
-        id: 'string',
-        do: 'map',
-        over: 'a string[] or number[] state field; it must be a list you control, and a tool result such as "No files found" is one string, not an empty list',
-        body: `one of ${MAP_BODY_KINDS.join(' | ')}; the body reads { $state: "item" } and { $state: "index" } and writes parent fields with mergeable reducers; a body id is optional and ignored`,
-        'maxItems?': `integer 1..${LIMITS.maxMapItems}; default ${LIMITS.defaultMapItems}`,
-        'maxConcurrency?': `integer 1..${LIMITS.maxMapConcurrency}; default ${LIMITS.defaultMaxConcurrency}`,
-      },
-      set: {
-        id: 'string',
-        do: 'set',
-        values: 'object of JSON literals or { $state: "field" } references',
-      },
-      subagent: {
-        id: 'string',
-        do: 'subagent',
-        prompt: 'array of strings and { $state: "field" } references; the child gets its own DSH session',
-        'schema?': 'JSON Schema for structured output',
-        out: 'state field -> transform',
-      },
-    },
-    edge: {
-      from: 'START or a node id',
-      to: 'a node id or END',
-      'when?': 'true | false | { op, args }',
-    },
-    transforms: TRANSFORMS,
-    transformNotes: {
-      bool: 'A JSON boolean or the text "true"/"false" only. A verify-style node that returns a sentence should use `text` plus a guard, or a `model` with a boolean schema.',
-    },
-    guards: GUARD_OPS,
-    limits: LIMITS,
-    example: EXAMPLE,
     examples: {
+      'scan-and-decide': EXAMPLE,
       'map-gate-write': MAP_GATE_WRITE_EXAMPLE,
       'map-extract': MAP_EXTRACT_EXAMPLE,
     },
-    guidance: [
-      'Coarse-first heuristic: 4-8 phase nodes is a good default, not a rule; the lint warns when a graph is too fine.',
-      'Open work -> agent (a prose brief plus tools); one judgment -> model; a human decision -> gate; a known atomic action -> tool. Merge steps unless the step itself is the contract.',
-      'Put "how" in the node brief and "what/when" in the edges.',
-      'Use { $state: "field" } references; dotted paths only enter json fields.',
-      'A transform must fit the field type: text->string, lines->string[], json->json, bool->boolean, number->number, first->string, count->number.',
-      '`bool` is strict: only a JSON boolean or the text "true"/"false". A verify node that returns a sentence should use `text` and a guard, or a `model` with a boolean schema.',
-      '`glob` returns text: add `out: { files: "lines" }` to make the `string[]` that `map.over` needs. A map body reads `{ $state: "item" }` and writes a parent field with a mergeable reducer; `out: { contents: "text" }` into a `string[]` with `append` adds one string per item.',
-      'A `gate` resumes with the raw answer. `options` are labels, not the resume value; for label answers use `out: { decision: "text" }` and an `eq` guard, for true/false use `bool`. The run returns `status: "interrupted"`; ask the user, then resume the same thread.',
-      'Edges: one unconditional = sequence; conditional in order = choice (add a when:true fallback); two or more unconditional = static fan-out, and a node with multiple incoming edges waits for all of them.',
-      'START has no incoming edges; END has no outgoing edges; do not mix conditional and unconditional out-edges from one node.',
-      'Use map for dynamic fan-out over a string[] or number[] field. The body reads { $state: "item" } and { $state: "index" }; its out fields need append/add/max/min/merge reducers, and append order is the input order. `over` must be a list you control: a tool result such as "No files found" is one string, not an empty list.',
-      'A tool node\'s args are the exact args you would pass to the DSH tool directly; the compiler does not rename them. A map body uses { $state: "item" } where an arg expects the item, e.g. read { path: { $state: "item" } }.',
-      'To collect one JSON object per item, declare `json` with default [] and reducer append; a model body\'s out { extracts: "json" } appends one object per item. `merge` is for merging objects into one, not collecting a list; it does not concatenate arrays. The `map-extract` example is this pattern.',
-      'For a write step, name the exact path and content/format in the node brief or args; an agent write may summarize instead of copying. The `map-gate-write` example is the full fine-grained pattern.',
-      'Use subagent when the work deserves its own DSH session; prompt is the child task and schema asks for structured output.',
-      'After a failure, read failedScc, upstream and downstream from the failure result. To change the graph, call fork with the failed node: it returns the downstream spec and the thread state; edit the spec, compose it, and run it with that state as input.',
-      'A composed graph is immutable and session-owned: to change it, compose a new spec and start a new thread.',
-      'Run the result with langgraph_run({ graph: "<id>" }); do not invent an id.',
-    ],
   }
 }
 

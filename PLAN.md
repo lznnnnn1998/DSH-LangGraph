@@ -201,6 +201,10 @@ explicit request or at the end of the batch.
 - A third big fine attempt doubted the `read` tool args. `describe` and docs now state
   that a tool node's args pass through unchanged and name `glob {pattern}`,
   `read {path}`, `write {path, content}`.
+- The per-failure notes had become whack-a-mole. The model-facing `describe` is now a
+  single coherent guide (contract about seams; state as ledger; nodes as roles; edges as
+  handoffs; gates as signatures; transforms as forms), followed by an exact reference and
+  archetype examples. The prompt uses the same vocabulary and points at the guide first.
 - 161 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
   the user's explicit go-ahead.
 
