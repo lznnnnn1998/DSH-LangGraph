@@ -274,6 +274,33 @@ test('rejects parallel branches that write one field without a mergeable reducer
   assert.ok(result.errors.some(error => error.path === 'state.all' && /parallel branches/.test(error.message)))
 })
 
+test('collects one json object per map item with json + append', () => {
+  const spec = {
+    ir: 1,
+    state: {
+      files: { type: 'string[]', default: [] },
+      extracts: { type: 'json', default: [], reducer: 'append' },
+    },
+    nodes: [{
+      id: 'walk',
+      do: 'map',
+      over: 'files',
+      body: { do: 'model', prompt: ['Extract this item.'], out: { extracts: 'json' } },
+    }],
+    edges: [{ from: 'START', to: 'walk' }, { from: 'walk', to: 'END' }],
+  }
+  const result = validateSpec(spec)
+  assert.equal(result.ok, true, JSON.stringify(result.errors))
+
+  const bad = JSON.parse(JSON.stringify(spec))
+  bad.state.extracts = { type: 'json', default: {}, reducer: 'append' }
+  const badResult = validateSpec(bad)
+  assert.equal(badResult.ok, false)
+  const reducerError = badResult.errors.find(error => error.path === 'state.extracts.reducer')
+  assert.ok(reducerError)
+  assert.match(reducerError.hint, /json list|default \[\]/)
+})
+
 test('hints how to build a string[] for a map and warns about a bool gate with labels', () => {
   const mapSpec = {
     ir: 1,

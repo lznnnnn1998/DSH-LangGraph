@@ -53,13 +53,13 @@ export class SpecError extends Error {
   }
 }
 
-/** Whether a reducer can be used with a state type. */
-function reducerFits(reducer, type) {
+/** Whether a reducer can be used with a state type and default value. */
+function reducerFits(reducer, type, defaultValue) {
   switch (reducer) {
     case 'replace':
       return true
     case 'append':
-      return type === 'string[]' || type === 'number[]'
+      return type === 'string[]' || type === 'number[]' || (type === 'json' && Array.isArray(defaultValue))
     case 'add':
     case 'max':
     case 'min':
@@ -383,7 +383,7 @@ export function validateSpec(input, options = {}) {
       if (map) {
         const reducer = definition.reducer ?? 'replace'
         if (reducer === 'replace') {
-          fail(outPath, `a map body writes "${field}" concurrently; give the field a mergeable reducer`, 'append | add | max | min | merge', 'Declare the field with reducer "append" for a string[]/number[], or "merge" for json; text into string[] + append adds one element per item.')
+          fail(outPath, `a map body writes "${field}" concurrently; give the field a mergeable reducer`, 'append | add | max | min | merge', 'Declare the field with reducer "append" for a list (string[]/number[], or json with default []), or "merge" for one json object; text into string[] + append adds one element per item.')
           continue
         }
         if (!transformFitsMap(kind, definition.type)) {
@@ -638,8 +638,8 @@ export function validateSpec(input, options = {}) {
       const reducer = field.reducer ?? 'replace'
       if (field.reducer !== undefined && !REDUCERS.includes(field.reducer)) {
         fail(`${path}.reducer`, `unknown reducer ${JSON.stringify(field.reducer)}`, REDUCERS.join(' | '))
-      } else if (typeKnown && !reducerFits(reducer, field.type)) {
-        fail(`${path}.reducer`, `reducer "${reducer}" is not compatible with type "${field.type}"`, 'replace')
+      } else if (typeKnown && !reducerFits(reducer, field.type, field.default)) {
+        fail(`${path}.reducer`, `reducer "${reducer}" is not compatible with type "${field.type}" and this default`, 'replace', 'For a json list, use type json, default [], reducer append; for a json object, use merge. merge shallow-merges objects and does not concatenate arrays.')
       }
       // Keep a best-effort entry even after a type error, so later messages do
       // not cascade into "unknown field" for every reference.

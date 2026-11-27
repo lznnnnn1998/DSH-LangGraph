@@ -193,7 +193,12 @@ explicit request or at the end of the batch.
   `map-gate-write` example, explains gate options/labels and raw resume values, adds
   glob→lines→map guidance, map error hints, and a gate options+bool warning. A small
   3-topic fine e2e then composed and ran a 5-node map/gate graph without reading source.
-- 160 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
+- A second big fine attempt exposed the remaining design gap: per-item JSON could not
+  use `json` + `append`, and `merge` semantics were unclear, so the model returned to
+  source reading. `json` fields with default `[]` now accept `append`; `describe` returns
+  `reducerNotes` and a `map-extract` example; docs state that `merge` does not
+  concatenate arrays.
+- 161 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
   the user's explicit go-ahead.
 
 ## 0.14.0 — sandboxed graph worker (DEFERRED — not a small version)

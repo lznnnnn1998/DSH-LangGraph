@@ -99,8 +99,11 @@ is required and must be `1`. No node id may equal a state field name; `__start__
 | `number[]` | an array of finite numbers |
 
 The reducer is one of `replace` (default), `append`, `add`, `max`, `min`, `merge`.
-`append` is for arrays, `add`/`max`/`min` for numbers, and `merge` for a json object
-(shallow merge). A field written by parallel branches or a `map` body must be mergeable.
+`append` is for arrays; a json field with default `[]` and `append` collects one value per
+item (objects included). `add`/`max`/`min` are for numbers. `merge` shallow-merges json
+objects (`{...left, ...right}`) and does **not** concatenate arrays; use `append` with
+default `[]` to collect a list. A field written by parallel branches or a `map` body must
+be mergeable.
 
 A `$state` reference names a top-level field. A dotted path (`data.answer`) reads into a
 `json` field only. A literal object may not use the `$state` key.
@@ -205,7 +208,12 @@ parent field named `item` or `index` is shadowed inside the body.
 - The body may be `tool`, `model`, `agent`, or `subagent`; no `gate`, no nested `map`.
 - Every body `out` field must use a mergeable reducer. `text`/`first` into
   `string[]` + `append` appends one string per item; `lines` appends an array; `number`
-  and `count` into `number[]` + `append`; `json` into `json` + `merge`.
+  and `count` into `number[]` + `append`.
+- For one structured object per item, declare the field as
+  `{ "type": "json", "default": [], "reducer": "append" }` and have the body write
+  `{ "extracts": "json" }`; each item appends one value. `json` into `json` + `merge`
+  is for merging objects into one object, not for a list. The `describe` reply returns
+  this pattern as the `map-extract` example.
 - `maxItems` defaults to 50 and is capped at 100. A longer array fails the map; it is
   never truncated.
 - `maxConcurrency` defaults to 8 and is capped at 16. In this version the strictest map

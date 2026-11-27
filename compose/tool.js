@@ -107,6 +107,65 @@ const MAP_GATE_WRITE_EXAMPLE = Object.freeze({
   maxSteps: 25,
 })
 
+/**
+ * A worked map-of-models spec: one JSON object per item is collected into a
+ * `json` field with default [] and reducer append. `merge` is for one object.
+ */
+const MAP_EXTRACT_EXAMPLE = Object.freeze({
+  ir: 1,
+  name: 'map-extract',
+  description: 'Read files, extract one JSON object per file, and outline the set.',
+  state: {
+    pattern: { type: 'string', default: '*.txt' },
+    files: { type: 'string[]', default: [] },
+    contents: { type: 'string[]', default: [], reducer: 'append' },
+    extracts: { type: 'json', default: [], reducer: 'append' },
+    outline: { type: 'string', default: '' },
+  },
+  nodes: [
+    { id: 'list', do: 'tool', tool: 'glob', args: { pattern: { $state: 'pattern' } }, out: { files: 'lines' } },
+    {
+      id: 'read',
+      do: 'map',
+      over: 'files',
+      body: { do: 'tool', tool: 'read', args: { path: { $state: 'item' } }, out: { contents: 'text' } },
+    },
+    {
+      id: 'extract',
+      do: 'map',
+      over: 'contents',
+      body: {
+        do: 'model',
+        prompt: ['Extract topic, claim and risk as JSON. Topic: ', { $state: 'item' }],
+        schema: {
+          type: 'object',
+          required: ['topic', 'claim', 'risk'],
+          properties: {
+            topic: { type: 'string' },
+            claim: { type: 'string' },
+            risk: { type: 'string' },
+          },
+        },
+        out: { extracts: 'json' },
+      },
+    },
+    {
+      id: 'join',
+      do: 'model',
+      prompt: ['Make an outline from these extracts:\n', { $state: 'extracts' }],
+      out: { outline: 'text' },
+    },
+  ],
+  edges: [
+    { from: 'START', to: 'list' },
+    { from: 'list', to: 'read' },
+    { from: 'read', to: 'extract' },
+    { from: 'extract', to: 'join' },
+    { from: 'join', to: 'END' },
+  ],
+  output: ['extracts', 'outline'],
+})
+
 /** Short IR topology for `validate`, which does not build a LangGraph. */
 function irTopology(spec) {
   return {
@@ -140,7 +199,11 @@ function describe() {
     stateField: {
       type: STATE_TYPES,
       default: 'required; must match the type',
-      'reducer?': `${REDUCERS.join(' | ')}; replace is the default`,
+      'reducer?': `${REDUCERS.join(' | ')}; replace is the default; a json list uses append with default []`,
+    },
+    reducerNotes: {
+      append: 'For arrays; a json field with default [] + append collects one value per item (objects included).',
+      merge: 'Shallow-merges json objects ({...left, ...right}); it does not concatenate arrays. Use append + default [] to collect a list.',
     },
     nodes: {
       tool: {
@@ -208,6 +271,7 @@ function describe() {
     example: EXAMPLE,
     examples: {
       'map-gate-write': MAP_GATE_WRITE_EXAMPLE,
+      'map-extract': MAP_EXTRACT_EXAMPLE,
     },
     guidance: [
       'Coarse-first heuristic: 4-8 phase nodes is a good default, not a rule; the lint warns when a graph is too fine.',
@@ -221,6 +285,7 @@ function describe() {
       'Edges: one unconditional = sequence; conditional in order = choice (add a when:true fallback); two or more unconditional = static fan-out, and a node with multiple incoming edges waits for all of them.',
       'START has no incoming edges; END has no outgoing edges; do not mix conditional and unconditional out-edges from one node.',
       'Use map for dynamic fan-out over a string[] or number[] field. The body reads { $state: "item" } and { $state: "index" }; its out fields need append/add/max/min/merge reducers, and append order is the input order. `over` must be a list you control: a tool result such as "No files found" is one string, not an empty list.',
+      'To collect one JSON object per item, declare `json` with default [] and reducer append; a model body\'s out { extracts: "json" } appends one object per item. `merge` is for merging objects into one, not collecting a list; it does not concatenate arrays. The `map-extract` example is this pattern.',
       'For a write step, name the exact path and content/format in the node brief or args; an agent write may summarize instead of copying. The `map-gate-write` example is the full fine-grained pattern.',
       'Use subagent when the work deserves its own DSH session; prompt is the child task and schema asks for structured output.',
       'After a failure, read failedScc, upstream and downstream from the failure result. To change the graph, call fork with the failed node: it returns the downstream spec and the thread state; edit the spec, compose it, and run it with that state as input.',
