@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { DOMAIN } from '../../dsh-checkpointer.js'
 import { STORE_DOMAIN } from '../../dsh-store.js'
+import { SPEC_DOMAIN } from '../../compose/specs.js'
 
 /** A minimal in-memory stand-in for one domain table. */
 export function createTable() {
@@ -36,7 +37,7 @@ export function createStorageDomain() {
   return {
     opened,
     async open(spec) {
-      assert.ok(spec === DOMAIN || spec === STORE_DOMAIN, `unexpected domain: ${spec?.name}`)
+      assert.ok(spec === DOMAIN || spec === STORE_DOMAIN || spec === SPEC_DOMAIN, `unexpected domain: ${spec?.name}`)
       opened.push(spec.name)
       return {
         table(name) {

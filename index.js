@@ -26,6 +26,8 @@ import { openCheckpointStore } from './dsh-checkpointer.js'
 import { openDshStore } from './dsh-store.js'
 import { createTracer } from './dsh-trace.js'
 import { langchainTool } from './dsh-tools.js'
+import { createResolver } from './compose/resolve.js'
+import { createMemorySpecStore, isSpecId, openSpecStore } from './compose/specs.js'
 
 /**
  * Identity helper for graph modules written in TypeScript.
@@ -210,11 +212,13 @@ export function apply(ctx, config) {
   let opened
   let openFailure
   let openedGraphStore
+  let openedSpecStore
   let disposed = false
   ctx.effect(() => () => {
     disposed = true
     if (opened !== undefined) void opened.close()
     if (openedGraphStore !== undefined) void openedGraphStore.close()
+    if (openedSpecStore !== undefined) void openedSpecStore.close()
   })
 
   /** @type {Promise<object | undefined> | undefined} */
@@ -295,6 +299,56 @@ export function apply(ctx, config) {
     if (store !== undefined) return { store, durableStore: true }
     memoryGraphStore ??= new InMemoryStore()
     return { store: memoryGraphStore, durableStore: false }
+  }
+
+  // --- composed graph specs -----------------------------------------------------
+  // A third domain, opened lazily like the others. Without `storageDomain` the
+  // store is process-local, matching the in-memory checkpoint fallback. Specs do
+  // not enter the registry or the system-prompt graph list; a session resolves
+  // its own ids only.
+  /** @type {Promise<object | undefined> | undefined} */
+  let specStorePromise
+  /** @type {ReturnType<typeof createMemorySpecStore> | undefined} */
+  let memorySpecStore
+  let specStoreFailure
+
+  /** Open the durable spec store once, or resolve undefined without a storage domain. */
+  function openSpecs() {
+    specStorePromise ??= (async () => {
+      const storageDomain = ctx.get('storageDomain')
+      if (storageDomain === undefined) return undefined
+      try {
+        const openedStore = await openSpecStore(storageDomain)
+        if (disposed) {
+          await openedStore.close()
+          return undefined
+        }
+        openedSpecStore = openedStore
+        return openedStore.store
+      } catch (error) {
+        specStoreFailure = error
+        ctx.logger?.warn(`langgraph: composed graph store unavailable, falling back to memory: ${error?.message ?? error}`)
+        return undefined
+      }
+    })()
+    return specStorePromise
+  }
+
+  /** The spec store for this process, durable when a storage domain is mounted. */
+  async function ensureSpecStore() {
+    const store = await openSpecs()
+    if (store !== undefined) return store
+    memorySpecStore ??= createMemorySpecStore()
+    return memorySpecStore
+  }
+
+  /** Resolve a registered graph or one of this session's composed specs. */
+  const resolveEntry = createResolver({ registry, getStore: ensureSpecStore })
+
+  /** Model-facing message for an id that is neither registered nor owned. */
+  function unknownGraphMessage(id, withList = false) {
+    if (isSpecId(id)) return `unknown or not owned composed graph "${id}"`
+    return `unknown graph "${id}"${withList ? `. Registered: ${[...registry.keys()].join(', ') || '(none)'}` : ''}`
   }
 
   /**
@@ -782,7 +836,7 @@ export function apply(ctx, config) {
    * @param {object} run - prepared run facts.
    * @returns {Promise<object>} the model-facing run result.
    */
-  async function executeRun({ id, compiled, store, thread, requestedThread, checkpointed, args, tracer, signal, sessionId }) {
+  async function executeRun({ id, compiled, store, thread, requestedThread, checkpointed, args, tracer, signal, sessionId, maxSteps }) {
     return await withThreadLock(thread, async () => {
       if (thread !== undefined) {
         const owner = { graph: id, ...(sessionId === undefined ? {} : { sessionId }) }
@@ -802,7 +856,9 @@ export function apply(ctx, config) {
         ? args.checkpoint.trim()
         : undefined
       const config = {
-        recursionLimit: Number.isInteger(args?.maxSteps) ? args.maxSteps : recursionLimit,
+        recursionLimit: Number.isInteger(args?.maxSteps)
+          ? args.maxSteps
+          : Number.isInteger(maxSteps) ? maxSteps : recursionLimit,
         ...(thread === undefined ? {} : {
           configurable: {
             thread_id: thread,
@@ -930,6 +986,7 @@ export function apply(ctx, config) {
               tracer,
               signal: controller.signal,
               sessionId,
+              maxSteps: entry.maxSteps,
             })
             if (result?.error !== undefined) return { status: 'failed', detail: result.error }
             job.updateProgress(result.status === 'interrupted' ? 'interrupted' : 'completed')
@@ -965,9 +1022,10 @@ export function apply(ctx, config) {
     await scan()
     const id = typeof args?.graph === 'string' ? args.graph.trim() : ''
     if (id === '') return { answer: await describeGraphs() }
-    const entry = registry.get(id)
+    const sessionId = exec?.agent?.id
+    const entry = await resolveEntry(id, sessionId)
     if (entry === undefined) {
-      return { error: `unknown graph "${id}". Registered: ${[...registry.keys()].join(', ') || '(none)'}` }
+      return { error: unknownGraphMessage(id, true) }
     }
     if (entry.error !== undefined) {
       return { error: `graph "${id}" is unavailable: ${entry.error.message}` }
@@ -975,7 +1033,6 @@ export function apply(ctx, config) {
 
     const { saver, durable, store: checkpointStore } = await ensureSaver()
     const { store: graphStore } = await ensureGraphStore()
-    const sessionId = exec?.agent?.id
     const requestedThread = typeof args.thread === 'string' && args.thread.trim() !== '' ? args.thread.trim() : undefined
     const requestedCheckpoint = typeof args?.checkpoint === 'string' && args.checkpoint.trim() !== '' ? args.checkpoint.trim() : undefined
     if (requestedCheckpoint !== undefined && requestedThread === undefined) {
@@ -1012,6 +1069,7 @@ export function apply(ctx, config) {
       tracer,
       signal: exec?.signal,
       sessionId,
+      maxSteps: entry.maxSteps,
     })
   }
 
@@ -1046,8 +1104,8 @@ export function apply(ctx, config) {
     if (action === 'topology') {
       const id = typeof args?.graph === 'string' ? args.graph.trim() : ''
       if (id === '') return { error: '`graph` is required to read a topology' }
-      const entry = registry.get(id)
-      if (entry === undefined) return { error: `unknown graph "${id}"` }
+      const entry = await resolveEntry(id, sessionId)
+      if (entry === undefined) return { error: unknownGraphMessage(id) }
       if (entry.error !== undefined) return { error: `graph "${id}" is unavailable: ${entry.error.message}` }
       try {
         return await topologyOf(entry)
@@ -1061,8 +1119,8 @@ export function apply(ctx, config) {
       if (id === '' || thread === '') {
         return { error: `\`graph\` and \`thread\` are required to ${action === 'edit' ? 'edit' : 'read'} a thread` }
       }
-      const entry = registry.get(id)
-      if (entry === undefined) return { error: `unknown graph "${id}"` }
+      const entry = await resolveEntry(id, sessionId)
+      if (entry === undefined) return { error: unknownGraphMessage(id) }
       if (entry.error !== undefined) return { error: `graph "${id}" is unavailable: ${entry.error.message}` }
       const conflict = threadConflict(store, thread, sessionId, id)
       if (conflict !== undefined) return { error: conflict }
@@ -1316,8 +1374,10 @@ export function apply(ctx, config) {
           await scan()
           const id = new URL(request.url).searchParams.get('graph') ?? ''
           if (id === '') return json({ error: '`graph` query parameter is required' }, 400)
-          const entry = registry.get(id)
-          if (entry === undefined) return json({ error: `unknown graph "${id}"` }, 404)
+          // The route is already owner-only at the DSH layer; the panel may show
+          // any of this user's sessions' composed graphs by id.
+          const entry = await resolveEntry(id, undefined, { allSessions: true })
+          if (entry === undefined) return json({ error: unknownGraphMessage(id) }, 404)
           if (entry.error !== undefined) return json({ error: `graph "${id}" is unavailable: ${entry.error.message}` }, 500)
           try {
             return json(await topologyOf(entry))
