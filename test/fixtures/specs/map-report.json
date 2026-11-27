@@ -1,0 +1,37 @@
+{
+  "ir": 1,
+  "name": "map-report",
+  "description": "Read every file in a list in parallel and combine the reports.",
+  "state": {
+    "files": { "type": "string[]", "default": ["a.js", "b.js"] },
+    "reports": { "type": "string[]", "default": [], "reducer": "append" },
+    "summary": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    {
+      "id": "read",
+      "do": "map",
+      "over": "files",
+      "maxItems": 10,
+      "maxConcurrency": 2,
+      "body": {
+        "do": "tool",
+        "tool": "read",
+        "args": { "path": { "$state": "item" } },
+        "out": { "reports": "text" }
+      }
+    },
+    {
+      "id": "join",
+      "do": "model",
+      "prompt": ["Combine these reports into one sentence:\n", { "$state": "reports" }],
+      "out": { "summary": "text" }
+    }
+  ],
+  "edges": [
+    { "from": "START", "to": "read" },
+    { "from": "read", "to": "join" },
+    { "from": "join", "to": "END" }
+  ],
+  "output": ["reports", "summary"]
+}

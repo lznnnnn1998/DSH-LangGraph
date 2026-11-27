@@ -307,7 +307,7 @@ export function lintWarnings(spec, analysis) {
   }
 
   if (nodes.length > 0 && nodes.length <= 2
-    && nodes.every(node => node.do !== 'agent' && node.do !== 'gate')
+    && nodes.every(node => !['agent', 'gate', 'map', 'subagent'].includes(node.do))
     && nodes.every(node => (analysis.outgoing.get(node.id) ?? []).length <= 1
       && (analysis.incoming.get(node.id) ?? []).length <= 1
       && analysis.reachableFromStart.has(node.id)

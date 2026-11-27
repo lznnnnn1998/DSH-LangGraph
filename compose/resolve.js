@@ -73,6 +73,9 @@ export function createResolver({ registry, getStore, cache = new Map() }) {
     if (record === undefined) return undefined
 
     const spec = record.spec
+    const mapLimits = spec.nodes
+      .filter(node => node.do === 'map')
+      .map(node => node.maxConcurrency ?? LIMITS.defaultMaxConcurrency)
     const entry = {
       id,
       composed: true,
@@ -81,6 +84,8 @@ export function createResolver({ registry, getStore, cache = new Map() }) {
       input: inputSchemaOf(spec),
       build: api => buildSpecGraph(api, spec),
       maxSteps: Number.isInteger(spec.maxSteps) ? spec.maxSteps : LIMITS.defaultMaxSteps,
+      // v1 applies the strictest map cap as the run's global LangGraph cap.
+      ...(mapLimits.length === 0 ? {} : { maxConcurrency: Math.min(...mapLimits) }),
       ...(Array.isArray(spec.output) ? { output: spec.output } : {}),
     }
     cache.set(cacheKey, entry)

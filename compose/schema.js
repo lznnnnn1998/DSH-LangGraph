@@ -15,6 +15,8 @@ import {
   GUARD_OPS,
   IR_VERSION,
   LIMITS,
+  MAP_BODY_FIELDS,
+  MAP_BODY_KINDS,
   NODE_FIELDS,
   NODE_KINDS,
   REDUCERS,
@@ -340,16 +342,30 @@ export function validateSpec(input, options = {}) {
     }
   }
 
-  function checkOut(node, path) {
+  function transformFitsMap(kind, fieldType) {
+    const produced = TRANSFORM_TYPES[kind]
+    if (produced === fieldType) return true
+    if (fieldType === 'json') return kind === 'json'
+    if (fieldType === 'string[]') return kind === 'text' || kind === 'first'
+    if (fieldType === 'number[]') return kind === 'number' || kind === 'count'
+    return false
+  }
+
+  function checkOut(node, path, options = {}) {
     if (!isPlainObject(node.out)) {
       fail(`${path}.out`, '`out` must be an object mapping state fields to transforms', 'object')
       return
     }
+    const map = options.map === true
     const schemaType = isPlainObject(node.schema) && typeof node.schema.type === 'string'
       ? node.schema.type
       : undefined
     for (const [field, kind] of Object.entries(node.out)) {
       const outPath = `${path}.out.${field}`
+      if (map && (field === 'item' || field === 'index')) {
+        fail(outPath, `"${field}" is reserved by a map body; write a parent state field instead`)
+        continue
+      }
       const definition = stateFields.get(field)
       if (definition === undefined) {
         fail(outPath, `"${field}" is not a declared state field`, [...stateFields.keys()].sort().join(' | ') || undefined)
@@ -359,6 +375,17 @@ export function validateSpec(input, options = {}) {
         fail(outPath, `unknown transform ${JSON.stringify(kind)}`, TRANSFORMS.join(' | '))
         continue
       }
+      if (map) {
+        const reducer = definition.reducer ?? 'replace'
+        if (reducer === 'replace') {
+          fail(outPath, `a map body writes "${field}" concurrently; give the field a mergeable reducer`, 'append | add | max | min | merge')
+          continue
+        }
+        if (!transformFitsMap(kind, definition.type)) {
+          fail(outPath, `transform "${kind}" cannot aggregate into a ${definition.type} field`, `a transform that writes ${definition.type}`)
+        }
+        continue
+      }
       const produced = TRANSFORM_TYPES[kind]
       const compatible = produced === definition.type
         || definition.type === 'json'
@@ -366,6 +393,110 @@ export function validateSpec(input, options = {}) {
       if (!compatible) {
         fail(outPath, `transform "${kind}" produces ${produced}, but "${field}" is ${definition.type}`, `a transform producing ${definition.type}`)
       }
+    }
+  }
+
+  function checkSchemaField(node, path) {
+    if (node.schema !== undefined && !isPlainObject(node.schema)) {
+      fail(`${path}.schema`, '`schema` must be a JSON Schema object', 'object')
+    } else if (node.schema !== undefined && !isJsonValue(node.schema)) {
+      fail(`${path}.schema`, '`schema` must be JSON-serializable')
+    }
+  }
+
+  function checkToolFields(node, path, options = {}) {
+    if (typeof node.tool !== 'string' || node.tool.trim() === '') {
+      fail(`${path}.tool`, '`tool` must be a non-empty tool name')
+    } else {
+      checkVisibleTool(node.tool, `${path}.tool`)
+    }
+    if (!isPlainObject(node.args)) {
+      fail(`${path}.args`, '`args` must be an object (use {} for no arguments)', 'object')
+    } else {
+      for (const [key, value] of Object.entries(node.args)) {
+        checkStateValue(value, `${path}.args.${key}`)
+      }
+    }
+    checkOut(node, path, options)
+  }
+
+  function checkModelFields(node, path, options = {}) {
+    checkPrompt(node.prompt, `${path}.prompt`)
+    if (node.system !== undefined && (typeof node.system !== 'string' || node.system.trim() === '')) {
+      fail(`${path}.system`, '`system` must be a non-empty string')
+    }
+    checkSchemaField(node, path)
+    checkOut(node, path, options)
+  }
+
+  function checkAgentFields(node, path, options = {}) {
+    checkPrompt(node.prompt, `${path}.prompt`)
+    if (!Array.isArray(node.tools)) {
+      fail(`${path}.tools`, '`tools` must be an array of tool names', 'array')
+    } else {
+      const seen = new Set()
+      node.tools.forEach((tool, toolIndex) => {
+        const toolPath = `${path}.tools[${toolIndex}]`
+        if (typeof tool !== 'string' || tool.trim() === '') {
+          fail(toolPath, 'a tool name must be a non-empty string')
+        } else if (seen.has(tool)) {
+          fail(toolPath, `duplicate tool "${tool}"`)
+        } else {
+          seen.add(tool)
+          checkVisibleTool(tool, toolPath)
+        }
+      })
+    }
+    checkOut(node, path, options)
+  }
+
+  function checkSubagentFields(node, path, options = {}) {
+    checkPrompt(node.prompt, `${path}.prompt`)
+    checkSchemaField(node, path)
+    checkOut(node, path, options)
+  }
+
+  function checkMapBody(node, path, itemType) {
+    if (!isPlainObject(node.body)) {
+      fail(`${path}.body`, '`body` must be one node object', 'object')
+      return
+    }
+    const body = node.body
+    const bodyPath = `${path}.body`
+    if (!MAP_BODY_KINDS.includes(body.do)) {
+      fail(`${bodyPath}.do`, `a map body must be one of ${MAP_BODY_KINDS.join(' | ')}`, MAP_BODY_KINDS.join(' | '))
+      return
+    }
+    if (body.id !== undefined && (typeof body.id !== 'string' || body.id.trim() === '' || /\s/.test(body.id))) {
+      fail(`${bodyPath}.id`, '`id` must be a non-empty string without whitespace when present')
+    }
+    checkKeys(body, MAP_BODY_FIELDS[body.do], bodyPath, fail)
+    const previousItem = stateFields.get('item')
+    const previousIndex = stateFields.get('index')
+    stateFields.set('item', { type: itemType, reducer: 'replace', default: undefined })
+    stateFields.set('index', { type: 'number', reducer: 'replace', default: 0 })
+    try {
+      switch (body.do) {
+        case 'tool':
+          checkToolFields(body, bodyPath, { map: true })
+          break
+        case 'model':
+          checkModelFields(body, bodyPath, { map: true })
+          break
+        case 'agent':
+          checkAgentFields(body, bodyPath, { map: true })
+          break
+        case 'subagent':
+          checkSubagentFields(body, bodyPath, { map: true })
+          break
+        default:
+          break
+      }
+    } finally {
+      if (previousItem === undefined) stateFields.delete('item')
+      else stateFields.set('item', previousItem)
+      if (previousIndex === undefined) stateFields.delete('index')
+      else stateFields.set('index', previousIndex)
     }
   }
 
@@ -481,8 +612,8 @@ export function validateSpec(input, options = {}) {
         fail(path, 'state field names must be non-empty and may not contain "." or whitespace')
         continue
       }
-      if (name === '__interrupt__') {
-        fail(path, '"__interrupt__" is reserved by LangGraph')
+      if (name === '__interrupt__' || name === '__start__' || name === '__end__') {
+        fail(path, `"${name}" is reserved by LangGraph`)
         continue
       }
       if (!isPlainObject(field)) {
@@ -537,9 +668,16 @@ export function validateSpec(input, options = {}) {
         fail(`${path}.id`, `"${node.id}" is reserved`)
         return
       }
+      if (node.id === '__start__' || node.id === '__end__' || node.id === '__interrupt__') {
+        fail(`${path}.id`, `"${node.id}" is reserved by LangGraph`)
+        return
+      }
       if (nodes.has(node.id)) {
         fail(`${path}.id`, `duplicate node id "${node.id}"`)
         return
+      }
+      if (stateFields.has(node.id)) {
+        fail(`${path}.id`, `"${node.id}" is also a state field; node ids and state field names must differ`)
       }
       if (!NODE_KINDS.includes(node.do)) {
         fail(`${path}.do`, `unknown node kind ${JSON.stringify(node.do)}`, NODE_KINDS.join(' | '))
@@ -549,52 +687,38 @@ export function validateSpec(input, options = {}) {
       checkKeys(node, NODE_FIELDS[node.do], path, fail)
       switch (node.do) {
         case 'tool':
-          if (typeof node.tool !== 'string' || node.tool.trim() === '') {
-            fail(`${path}.tool`, '`tool` must be a non-empty tool name')
-          } else {
-            checkVisibleTool(node.tool, `${path}.tool`)
-          }
-          if (!isPlainObject(node.args)) {
-            fail(`${path}.args`, '`args` must be an object (use {} for no arguments)', 'object')
-          } else {
-            for (const [key, value] of Object.entries(node.args)) {
-              checkStateValue(value, `${path}.args.${key}`)
-            }
-          }
-          checkOut(node, path)
+          checkToolFields(node, path)
           break
         case 'model':
-          checkPrompt(node.prompt, `${path}.prompt`)
-          if (node.system !== undefined && (typeof node.system !== 'string' || node.system.trim() === '')) {
-            fail(`${path}.system`, '`system` must be a non-empty string')
-          }
-          if (node.schema !== undefined && !isPlainObject(node.schema)) {
-            fail(`${path}.schema`, '`schema` must be a JSON Schema object', 'object')
-          } else if (node.schema !== undefined && !isJsonValue(node.schema)) {
-            fail(`${path}.schema`, '`schema` must be JSON-serializable')
-          }
-          checkOut(node, path)
+          checkModelFields(node, path)
           break
         case 'agent':
-          checkPrompt(node.prompt, `${path}.prompt`)
-          if (!Array.isArray(node.tools)) {
-            fail(`${path}.tools`, '`tools` must be an array of tool names', 'array')
-          } else {
-            const seen = new Set()
-            node.tools.forEach((tool, toolIndex) => {
-              const toolPath = `${path}.tools[${toolIndex}]`
-              if (typeof tool !== 'string' || tool.trim() === '') {
-                fail(toolPath, 'a tool name must be a non-empty string')
-              } else if (seen.has(tool)) {
-                fail(toolPath, `duplicate tool "${tool}"`)
-              } else {
-                seen.add(tool)
-                checkVisibleTool(tool, toolPath)
-              }
-            })
-          }
-          checkOut(node, path)
+          checkAgentFields(node, path)
           break
+        case 'subagent':
+          checkSubagentFields(node, path)
+          break
+        case 'map': {
+          if (typeof node.over !== 'string' || node.over === '' || node.over.includes('.')) {
+            fail(`${path}.over`, '`over` must be a top-level array state field name')
+          } else {
+            const over = stateFields.get(node.over)
+            if (over === undefined) {
+              fail(`${path}.over`, `"${node.over}" is not a declared state field`, [...stateFields.keys()].sort().join(' | ') || undefined)
+            } else if (over.type !== 'string[]' && over.type !== 'number[]') {
+              fail(`${path}.over`, `"${node.over}" is ${over.type}; a map needs a string[] or number[] field`, 'string[] | number[]')
+            }
+          }
+          if (node.maxItems !== undefined && (!Number.isInteger(node.maxItems) || node.maxItems < 1 || node.maxItems > LIMITS.maxMapItems)) {
+            fail(`${path}.maxItems`, `\`maxItems\` must be an integer between 1 and ${LIMITS.maxMapItems}`, `integer 1..${LIMITS.maxMapItems}`)
+          }
+          if (node.maxConcurrency !== undefined && (!Number.isInteger(node.maxConcurrency) || node.maxConcurrency < 1 || node.maxConcurrency > LIMITS.maxMapConcurrency)) {
+            fail(`${path}.maxConcurrency`, `\`maxConcurrency\` must be an integer between 1 and ${LIMITS.maxMapConcurrency}`, `integer 1..${LIMITS.maxMapConcurrency}`)
+          }
+          const over = typeof node.over === 'string' ? stateFields.get(node.over) : undefined
+          checkMapBody(node, path, over?.type === 'number[]' ? 'number' : 'string')
+          break
+        }
         case 'gate':
           if (typeof node.question !== 'string' || node.question.trim() === '') {
             fail(`${path}.question`, '`question` must be a non-empty string')

@@ -1,0 +1,38 @@
+{
+  "ir": 1,
+  "name": "ask-workspace",
+  "description": "List files matching a glob, then have the model explain the result in one sentence.",
+  "state": {
+    "pattern": { "type": "string", "default": "**/*.md" },
+    "files": { "type": "string", "default": "" },
+    "explanation": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    {
+      "id": "scan",
+      "do": "tool",
+      "tool": "glob",
+      "args": { "pattern": { "$state": "pattern" } },
+      "out": { "files": "text" }
+    },
+    {
+      "id": "answer",
+      "do": "model",
+      "prompt": [
+        "Files matching ",
+        { "$state": "pattern" },
+        ":\n",
+        { "$state": "files" },
+        "\n\nIn one sentence, say what this says about the project layout."
+      ],
+      "system": "You are explaining a repository layout to its owner. Be concrete and brief.",
+      "out": { "explanation": "text" }
+    }
+  ],
+  "edges": [
+    { "from": "START", "to": "scan" },
+    { "from": "scan", "to": "answer" },
+    { "from": "answer", "to": "END" }
+  ],
+  "output": ["explanation"]
+}

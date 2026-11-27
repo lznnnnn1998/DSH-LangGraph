@@ -16,7 +16,10 @@ export const START = 'START'
 export const END = 'END'
 
 /** Node kinds this compiler version can build. */
-export const NODE_KINDS = Object.freeze(['tool', 'model', 'agent', 'gate', 'set'])
+export const NODE_KINDS = Object.freeze(['tool', 'model', 'agent', 'gate', 'map', 'set', 'subagent'])
+
+/** Node kinds allowed inside a `map` body. A gate and a nested map are not. */
+export const MAP_BODY_KINDS = Object.freeze(['tool', 'model', 'agent', 'subagent'])
 
 /** State field types. There is no `any`: every value has a declared shape. */
 export const STATE_TYPES = Object.freeze(['string', 'number', 'boolean', 'json', 'string[]', 'number[]'])
@@ -50,7 +53,17 @@ export const NODE_FIELDS = Object.freeze({
   model: Object.freeze(['id', 'do', 'prompt', 'system', 'schema', 'out']),
   agent: Object.freeze(['id', 'do', 'prompt', 'tools', 'out']),
   gate: Object.freeze(['id', 'do', 'question', 'options', 'out']),
+  map: Object.freeze(['id', 'do', 'over', 'body', 'maxItems', 'maxConcurrency']),
   set: Object.freeze(['id', 'do', 'values']),
+  subagent: Object.freeze(['id', 'do', 'prompt', 'schema', 'out']),
+})
+
+/** Fields a map body may carry; its `id` is optional and ignored. */
+export const MAP_BODY_FIELDS = Object.freeze({
+  tool: Object.freeze(['id', 'do', 'tool', 'args', 'out']),
+  model: Object.freeze(['id', 'do', 'prompt', 'system', 'schema', 'out']),
+  agent: Object.freeze(['id', 'do', 'prompt', 'tools', 'out']),
+  subagent: Object.freeze(['id', 'do', 'prompt', 'schema', 'out']),
 })
 
 /** The JSON type a transform produces. */

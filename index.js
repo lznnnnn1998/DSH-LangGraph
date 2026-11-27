@@ -888,7 +888,7 @@ export function apply(ctx, config) {
    * @param {object} run - prepared run facts.
    * @returns {Promise<object>} the model-facing run result.
    */
-  async function executeRun({ id, compiled, store, thread, requestedThread, checkpointed, args, tracer, signal, sessionId, maxSteps }) {
+  async function executeRun({ id, compiled, store, thread, requestedThread, checkpointed, args, tracer, signal, sessionId, maxSteps, maxConcurrency }) {
     return await withThreadLock(thread, async () => {
       if (thread !== undefined) {
         const owner = { graph: id, ...(sessionId === undefined ? {} : { sessionId }) }
@@ -911,6 +911,7 @@ export function apply(ctx, config) {
         recursionLimit: Number.isInteger(args?.maxSteps)
           ? args.maxSteps
           : Number.isInteger(maxSteps) ? maxSteps : recursionLimit,
+        ...(maxConcurrency === undefined ? {} : { maxConcurrency }),
         ...(thread === undefined ? {} : {
           configurable: {
             thread_id: thread,
@@ -1039,6 +1040,7 @@ export function apply(ctx, config) {
               signal: controller.signal,
               sessionId,
               maxSteps: entry.maxSteps,
+              maxConcurrency: entry.maxConcurrency,
             })
             if (result?.error !== undefined) return { status: 'failed', detail: result.error }
             job.updateProgress(result.status === 'interrupted' ? 'interrupted' : 'completed')
@@ -1122,6 +1124,7 @@ export function apply(ctx, config) {
       signal: exec?.signal,
       sessionId,
       maxSteps: entry.maxSteps,
+      maxConcurrency: entry.maxConcurrency,
     })
   }
 

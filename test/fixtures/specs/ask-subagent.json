@@ -1,0 +1,22 @@
+{
+  "ir": 1,
+  "name": "ask-subagent",
+  "description": "Delegate one research question to a child DSH session.",
+  "state": {
+    "question": { "type": "string", "default": "What kind of project is this workspace?" },
+    "answer": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    {
+      "id": "delegate",
+      "do": "subagent",
+      "prompt": ["Research this workspace and answer briefly: ", { "$state": "question" }],
+      "out": { "answer": "text" }
+    }
+  ],
+  "edges": [
+    { "from": "START", "to": "delegate" },
+    { "from": "delegate", "to": "END" }
+  ],
+  "output": ["answer"]
+}

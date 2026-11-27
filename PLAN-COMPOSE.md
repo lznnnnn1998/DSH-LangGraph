@@ -12,6 +12,12 @@
 4. 从第一个未完成的 M 继续。
 5. **不要 push**，直到 M5 全部验证完。
 
+### 0.1 进度
+
+- 2026-11-27：M1 `5e12fca`、M2 `80d2ab9`、M3 `7aff06a` 已本地提交；M4（map + subagent）本地完成，待提交。
+- 下一项：M5（结构化失败 / 恢复 / fork / 报告 / 文档 / 最终 push）。
+- 仍未 push、未打 tag、未发 npm。
+
 ## 1. 一句话
 
 让模型在任务执行中，用一份**严格 JSON IR** 组合一张 session 拥有的图；插件用**确定性编译器**（无模型）把它翻译成 LangGraph `StateGraph`，用现有 checkpointer / helpers / trace 运行；失败时给出失败前的**两个 superstep**、依赖/SCC 和状态，模型选择 resume / edit / replay，或为失败节点之后的下游 **fork 一份新 spec** 重新组合。
@@ -40,7 +46,7 @@
 | # | 决策 |
 |---|---|
 | D1 | v1 节点：`tool` / `model` / `agent` / `gate` / `map` / `set`；`subagent` M4；`subgraph` 后置。`agent` 是“留白”的开放工作单元。 |
-| D2 | `map` 聚合 v1 用 `append`（完成顺序）；`indexed`（按输入顺序落位）M4.1。 |
+| D2 | `map` 聚合 v1 用 `append`；LangGraph 的 `Send` 并行写入按任务创建顺序（即输入顺序）合并，不是完成顺序。`indexed` 不再需要用于排序（M4.1 可删除或改为按字段排序）。 |
 | D3 | 允许多条无条件出边 = **静态 fan-out**；复用 `map` 的 writer/reducer 校验、隐式 join、trace、失败/SCC；`map` 是动态 fan-out。 |
 | D4 | 失败恢复：返回失败前的**两个 superstep** + 依赖/SCC + 状态；模型选择 retry/edit/replay，或为下游 fork 新 spec。运行时不自动改图。 |
 | D5 | 循环图**不禁止**；用 SCC 分析，循环作为一个恢复单元；`maxSteps` 兜底。 |
@@ -281,9 +287,12 @@ v1 不允许同一节点混合无条件边和条件边。`START` 只能无条件
 - 编译器给 body 注入隐藏的 `item` / `index`；body 用 `$state` 读取。
 - body 的 `out` 写父 state；reducer 聚合。
 - `maxItems` 默认 50，上限 100；超限拒绝，不截断。
-- `maxConcurrency` 默认 8，上限 16；传给 invoke 配置。
-- v1 `append` 是完成顺序；需要输入顺序时用 M4.1 的 `indexed`。
-- body 失败时错误带 `itemIndex`；已完成的 item 在 checkpoint 里，resume 只重跑 pending。
+- `maxConcurrency` 默认 8，上限 16；v1 作为整张图的全局上限（取所有 map 的最小值），per-map 留 M4.1。
+- v1 `append` 的顺序是 `Send` 创建顺序（即输入顺序），不是完成顺序；这是 LangGraph 并行任务的确定性写入顺序，已在 1.7.5 实测。`indexed` 不再需要用于排序。
+- 编译器给每个 map 生成隐藏的 fanout / body / join 三个节点（`<id>__fanout`、`<id>`、`<id>__join`）；join 在所有 item 完成后运行一次，再走 map 的出边，所以 map 后的 guard/choice 看到的是聚合后的 state。
+- 空数组会发送一个 sentinel item，让 join 仍然运行，下游不会静默结束。
+- body 的 `out` 写父 state，字段必须有可合并 reducer；`text`/`first` 写入 `string[]` + `append` 表示每个 item 追加一个字符串，`number`/`count` 写入 `number[]` + `append`，`json` 写入 `json` + `merge`。
+- body 失败时错误带 `nodeId`（map id）和 `itemIndex`；已完成的 item 在 checkpoint 里，resume 只重跑 pending。
 
 ### 5.8 spec id / 版本
 
@@ -599,7 +608,7 @@ M5 在 `executeRun` 外包一层 try/catch；节点包装器附加 `error.nodeId
 ## 12. 测试计划
 
 - **单元**：schema / guard / template / build / analysis / store / lint。
-- **conformance**：七个示例图逐个写成 spec；v1 先 `scan-report`、`typed-report`、`approval-gate`、`ask-workspace`、`ask-tools`（agent）；M4 补 `ask-subagent`、`ask-user`。
+- **conformance**：示例图逐个写成 spec；v1 先 `scan-report`、`typed-report`、`approval-gate`、`ask-workspace`、`ask-tools`（agent）；M4 补 `map-report`、`ask-subagent`、`ask-user`。
 - **集成**：compose → run → interrupt → resume → history/edit/replay；background；owner；工具可见性；path；缺失 spec。
 - **失败/循环**：静态 fan-out 分支失败；map item 失败；loop 内失败；recursionLimit；fork 下游；re-compose。
 - **prompt**：section 文本/顺序、工具描述、coarse-first；私有矩阵（compose-worthy / simple / registered）。
@@ -609,8 +618,8 @@ M5 在 `executeRun` 外包一层 try/catch；节点包装器附加 `error.nodeId
 ## 13. 待定 / 风险
 
 - `fork` 放 M5 还是 M6。
-- `indexed` map 的排序语义（M4.1）。
-- `maxConcurrency` 默认值（8）。
+- `indexed` map：排序已由 Send 输入顺序保证；M4.1 可删除或改为按字段排序。
+- `maxConcurrency`：已实现默认 8、上限 16、整图取最小；per-map 是 M4.1。
 - `path` 的根目录（session cwd / workspace root）。
 - `describe` 返回的 schema 大小；工具定义保持小。
 - 版本号（建议 1.1.0，M5 再 bump）。

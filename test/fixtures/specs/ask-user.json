@@ -1,0 +1,23 @@
+{
+  "ir": 1,
+  "name": "ask-user",
+  "description": "Pause the graph for a native human decision.",
+  "state": {
+    "question": { "type": "string", "default": "Proceed with this workspace?" },
+    "answer": { "type": "string", "default": "" }
+  },
+  "nodes": [
+    {
+      "id": "ask",
+      "do": "gate",
+      "question": "Proceed with this workspace?",
+      "options": ["Yes", "No"],
+      "out": { "answer": "text" }
+    }
+  ],
+  "edges": [
+    { "from": "START", "to": "ask" },
+    { "from": "ask", "to": "END" }
+  ],
+  "output": ["answer"]
+}
