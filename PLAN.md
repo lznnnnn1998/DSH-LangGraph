@@ -183,6 +183,11 @@ explicit request or at the end of the batch.
   while forced coarse/fine graphs cost 2.6–4.9x tokens; `describe` now calls out the
   strict `bool` transform and that `map.over` must be a controlled list. A real Web
   session on a new `lgtest` profile/3085 passed compose → run.
+- Big-task comparison (12 topics + approval): the default ordinary loop took 53s / 124K
+  and succeeded; a forced coarse 4-node agent graph took 1m38s / 462K and succeeded but
+  its write node dropped headings and needed a manual fix; the forced fine run was
+  stopped at 19 steps / 506K with no output after it started reading the harness/plugin
+  source instead of using `describe`.
 - 159 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
   the user's explicit go-ahead.
 

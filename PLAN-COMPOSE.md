@@ -616,7 +616,8 @@ M5 在 `executeRun` 外包一层 try/catch；节点包装器附加 `error.nodeId
 - 默认 prompt 在四个 default run 里都没有 compose，包括 8 文件 fanout；普通 loop 最便宜（report 9s/47k，fanout 7s/81k）。
 - forced coarse/fine：2.6–4.9x token、3.3–8.6x 时间；fine 触发 `literal-tool`/`model-then-tool`/`tiny-graph`；3 次先失败后 fork/重写恢复。
 - 最常见失败：verify 节点 `out: bool`，但生产者返回一句话；`describe` 现在明确 `bool` 严格语义和 `map.over` 应是受控列表。
-- 仍未测 compose-worthy 大任务（大量 item 且每项需要 model/tool，或跨 turn 持久化）；不据此收紧或继续放松 prompt。
+- 2026-11-27 大任务（12 topic + 人工 approve）：default 普通 loop 53s/124K 成功；forced coarse 4 节点 agent 图 1m38s/462K 成功，但 write 节点丢标题、模型手工修复；forced fine 在 19 steps/506K 时被停止，未产出——模型去读 harness/plugin 源码而不是用 `describe`。结论：该任务普通 loop 最优；强制细粒度图有害；保持放松 prompt/保守默认。
+- 仍未测跨 turn 持久化/大规模 per-item model 且无法批量的任务；不据此收紧或继续放松 prompt。
 
 ## 13. 待定 / 风险
 
