@@ -176,6 +176,9 @@ explicit request or at the end of the batch.
   it too. Success results carry a small run report.
 - resume/edit/replay, `fork` downstream or SCC + re-compose, cycle recovery, GraphSpec
   types, `docs/COMPOSE.md`, README/DETAIL/ECOSYSTEM/CONTEXT updates.
+- Prompt relaxed to principles (seams, coarse graph, open work in `agent`); prompt tests
+  assert tool names, boundaries, and the registry rather than sentences; numeric
+  thresholds stay in the lint and `describe`.
 - 159 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
   the user's explicit go-ahead.
 

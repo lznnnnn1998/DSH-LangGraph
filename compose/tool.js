@@ -156,8 +156,8 @@ function describe() {
     limits: LIMITS,
     example: EXAMPLE,
     guidance: [
-      'Coarse-first: aim for 4-8 phase nodes, not one node per tool call.',
-      'Open work -> agent (a prose brief plus tools); one judgment -> model; a human decision -> gate; a known atomic action -> tool.',
+      'Coarse-first heuristic: 4-8 phase nodes is a good default, not a rule; the lint warns when a graph is too fine.',
+      'Open work -> agent (a prose brief plus tools); one judgment -> model; a human decision -> gate; a known atomic action -> tool. Merge steps unless the step itself is the contract.',
       'Put "how" in the node brief and "what/when" in the edges.',
       'Use { $state: "field" } references; dotted paths only enter json fields.',
       'A transform must fit the field type: text->string, lines->string[], json->json, bool->boolean, number->number, first->string, count->number.',

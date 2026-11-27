@@ -97,9 +97,10 @@ a description match, or a graph-specific need such as a durable thread, backgrou
 interrupt/resume, checkpoint replay, or Trajectory sub-calls), and the registry (up to 24
 ids and descriptions; input schemas stay out of the prompt). The model therefore knows
 what exists without spending a discovery call; `langgraph_run` with no `graph` still
-returns the full list and input schemas. The section also states when to compose, the
-coarse-first default (4–8 phase nodes), that a composed graph is immutable and session-
-owned, and how to read a failed run and fork its downstream.
+returns the full list and input schemas. The section also states the compose principle
+(seams, coarse graph, open work in `agent`), that a composed graph is immutable and
+session-owned, and how to read a failed run and fork its downstream. The numeric
+thresholds and node-kind heuristics live in the advisory lint and `describe`.
 
 - The section sits just before the subagent guidance, after the `workflow` tool's
   "only when the user asks" rule. An earlier placement at `TOOL_WORKFLOW` made the two

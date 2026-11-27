@@ -5,11 +5,11 @@ import { renderGraphPrompt } from '../index.js'
 test('hints at discovery before the first scan', () => {
   const text = renderGraphPrompt(new Map(), false)
   assert.match(text, /langgraph_run/)
-  assert.match(text, /list the registered graphs/)
+  assert.match(text, /langgraph_compose/)
   assert.doesNotMatch(text, /Registered graphs:/)
 })
 
-test('states the graph vocabulary, selection policy, and registry', () => {
+test('states the graph vocabulary, boundaries, and registry', () => {
   const registry = new Map([
     ['b', { id: 'b', description: 'Second graph.' }],
     ['a', { id: 'a', description: 'First\ngraph.' }],
@@ -17,31 +17,26 @@ test('states the graph vocabulary, selection policy, and registry', () => {
   ])
   const text = renderGraphPrompt(registry, true)
 
-  // Vocabulary and boundary with DSH.
+  // Vocabulary and boundary with DSH, not the selection sentences.
+  assert.match(text, /langgraph_run/)
+  assert.match(text, /langgraph_threads/)
+  assert.match(text, /langgraph_compose/)
   assert.match(text, /profile-registered/)
   assert.match(text, /not the `workflow` tool/)
   assert.match(text, /not a DSH Session/)
-
-  // Selection policy, as concepts rather than exact prose.
-  assert.match(text, /Use `langgraph_run` when:/)
-  assert.match(text, /names one of the graph ids/)
-  assert.match(text, /matches the requested output/)
-  assert.match(text, /durable LangGraph thread/)
-  assert.match(text, /langgraph_compose/)
-  assert.match(text, /4-8 phase nodes/)
-  assert.match(text, /immutable session-owned spec/)
+  assert.doesNotMatch(text, /cannot define a new one/)
 
   // Registry and discovery.
   assert.match(text, /Registered graphs:/)
   assert.match(text, /- a: First graph/)
   assert.match(text, /- b: Second graph/)
   assert.doesNotMatch(text, /broken/)
-  assert.match(text, /Omit `graph` to list input schemas/)
+  assert.match(text, /Omit `graph` to list/)
 })
 
 test('reports an empty registry after a completed scan', () => {
   const text = renderGraphPrompt(new Map(), true)
-  assert.match(text, /No graph is registered yet/)
+  assert.match(text, /No graph/)
   assert.doesNotMatch(text, /Registered graphs:/)
 })
 

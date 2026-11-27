@@ -28,7 +28,8 @@ Do not compose for one or two linear steps, to wrap a single tool call, or when 
 registered graph already matches. The ordinary agent loop remains the default; a graph
 should earn its ceremony.
 
-Aim for **4–8 phase nodes**. `validate` and `compose` return advisory warnings for a
+The system prompt only states the principle; the numbers live here and in the advisory
+lint. Aim for **4–8 phase nodes**. `validate` and `compose` return advisory warnings for a
 graph with more than 12 nodes, a chain longer than 8 phases, a literal-only single tool
 node, a model that feeds one tool, or a one- or two-step linear graph. Warnings do not
 block; use them to merge steps into an `agent` node.

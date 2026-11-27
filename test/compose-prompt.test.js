@@ -33,33 +33,27 @@ function setup() {
   return { ctx, compose: ctx.tools.get('langgraph_compose') }
 }
 
-test('the prompt teaches composing, coarse-first, and immutability', () => {
+test('the prompt names the graph tools and the hard boundaries', () => {
   const text = renderGraphPrompt(registry(), true)
+  assert.match(text, /langgraph_run/)
+  assert.match(text, /langgraph_threads/)
   assert.match(text, /langgraph_compose/)
-  assert.match(text, /at least three dependent steps/)
-  assert.match(text, /4-8 phase nodes/)
-  assert.match(text, /Use `agent` for open work/)
-  assert.match(text, /one node per tool call/)
-  assert.match(text, /immutable session-owned spec/)
+  assert.match(text, /not the `workflow` tool/)
   assert.match(text, /not a DSH Session/)
-  assert.match(text, /status: "failed"/)
-  assert.match(text, /lastSupersteps/)
-  assert.match(text, /action: "fork"/)
   assert.doesNotMatch(text, /cannot define a new one/)
   assert.match(text, /Registered graphs:/)
   assert.match(text, /- scan-report: Scan and report\./)
 })
 
-test('the prompt still teaches composing before a scan and with no registry', () => {
+test('the prompt names the tools before a scan and with no registry', () => {
   const before = renderGraphPrompt(new Map(), false)
+  assert.match(before, /langgraph_run/)
   assert.match(before, /langgraph_compose/)
-  assert.match(before, /4-8 phase nodes/)
-  assert.match(before, /list the registered graphs/)
+  assert.doesNotMatch(before, /Registered graphs:/)
 
   const empty = renderGraphPrompt(new Map(), true)
-  assert.match(empty, /No graph is registered yet/)
+  assert.match(empty, /No graph/)
   assert.match(empty, /langgraph_compose/)
-  assert.match(empty, /4-8 phase nodes/)
   assert.doesNotMatch(empty, /Registered graphs:/)
 })
 
@@ -69,16 +63,24 @@ test('apply registers the compose tool and the prompt section', async () => {
   try {
     const compose = ctx.tools.get('langgraph_compose')
     assert.ok(compose, 'the compose tool is registered')
-    assert.match(compose.description, /4-8 phase nodes/)
-    assert.match(compose.description, /immutable session spec/)
-    assert.match(compose.description, /fork/)
+    assert.match(compose.description, /langgraph_run/)
     assert.deepEqual(compose.parameters.required, ['action'])
+    assert.ok(compose.parameters.properties.from)
+    assert.ok(compose.parameters.properties.thread)
+    assert.deepEqual(compose.parameters.properties.action.enum, [
+      'describe',
+      'validate',
+      'compose',
+      'list',
+      'get',
+      'delete',
+      'fork',
+    ])
 
     await ctx.tools.get('langgraph_run').execute({}, exec())
     await new Promise(resolve => setImmediate(resolve))
     const text = ctx.sections[0].text()
     assert.match(text, /langgraph_compose/)
-    assert.match(text, /4-8 phase nodes/)
     assert.doesNotMatch(text, /cannot define a new one/)
   } finally {
     ctx.dispose()

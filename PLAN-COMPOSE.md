@@ -15,6 +15,7 @@
 ### 0.1 进度
 
 - 2026-11-27：M1 `5e12fca`、M2 `80d2ab9`、M3 `7aff06a`、M4 `203f10c` 已本地提交；M5（结构化失败 / 恢复 / fork / 报告 / 文档）本地完成并验证。
+- prompt/测试放松：always-on prompt 只留原则（接缝 / 粗粒度 / `agent` 留白），4–8 和节点类型映射移到 lint/`describe`；prompt 测试改为词汇/边界/结构断言。
 - 下一项：等用户明确同意后再 push / tag / 发 npm。
 - 仍未 push、未打 tag、未发 npm。
 
@@ -524,29 +525,22 @@ M5 在 `executeRun` 外包一层 try/catch；节点包装器附加 `error.nodeId
 
 - 现在：`langgraph_run` 只跑注册图，不能定义图。
 - 改为：可以用 `langgraph_compose` 组合一张 **session 拥有的**图。
-- 何时 compose：
-  - ≥3 个有依赖的步骤；
-  - 需要分支 / 重试；
-  - 需要跨 turn / 跨进程持久；
-  - 需要 fan-out + 聚合；
-  - 需要人工 gate。
-- 何时不 compose：
-  - 1–2 步、纯线性；
-  - 已注册图匹配时优先注册图；
-  - 只是想把一次工具调用包装得“正式”。
+- **prompt 用“接缝”语言表达何时 compose，不把判断逐条写成清单。** 数字和节点类型映射放 `describe` / lint，不放进每轮 prompt。
+- 设计判断（也是 lint 依据）：工作有每轮不该重新决定的接缝——跨 turn 持久、并行聚合、人工 gate、重试边界；或 ≥3 个有依赖的步骤 / 分支。
+- 何时不 compose：1–2 步、纯线性；已注册图匹配时优先注册图；只是想把一次工具调用包装得“正式”。
 
 - compose 不是文件、不是 `graphs/*.js`、不是 DSH Session；不可变；改图要新 compose。
 - 失败恢复：读 `lastSupersteps` 和依赖信息；retry / edit / replay / fork 下游。
 - spec 列表不在全局 prompt；用 `langgraph_compose list` 或 `langgraph_run` 无参列表。
 - `langgraph_run` 描述：`graph` 可以是注册 id 或 composed id；无参列出。
 - `langgraph_threads` 描述：对 composed 图同样适用。
-- 测试：section 文本/顺序、工具描述、无编造 id、no push。
+- 测试：section 的词汇/工具名/边界/顺序、无编造 id；prompt 行为放私有矩阵，仓库测试不断言具体句子。
 
 ### 10.1 coarse-first
 
 - **结构在接缝，散文在节点。** 图只管阶段、依赖、分支、并行、gate、state、持久化；节点内部是模型可自由发挥的 brief。
-- 默认 **4–8 个阶段节点**，不是“一个工具一个节点”。
-- 开放工作 → `agent`；单次判断 → `model`；人工确认 → `gate`；已知原子动作 → `tool`。
+- **always-on prompt 只写原则，不写数字和节点类型清单。** 图值得写，当工作有“每轮不该重新决定”的接缝：跨 turn 持久、并行聚合、人工决策、重试边界。保持粗粒度：开放工作放 `agent`，brief 里写细节；只有这一步本身是契约时才拆细。
+- 4–8 个阶段节点、节点类型映射放在 `describe`（按需手册）和 lint（事后建议），不放进每轮 prompt。
 - **“how” 写在节点 brief 里，“what/when” 写在图的边上。**
 - 默认不 compose；探索性/线性任务用普通工具。模型永远可以退回普通 agent loop。
 - `validate` / `compose` 返回 **advisory warnings**，不是硬错误；硬错误只有 schema/引用/预算。

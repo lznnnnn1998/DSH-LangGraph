@@ -62,11 +62,11 @@ graph with `bash`, `subagent`, or ad-hoc steps. This keeps graph
 use from becoming ceremony while still letting a matching graph win over a hand-rolled
 sequence.
 
-`langgraph_compose` has its own trigger: at least three dependent steps, a branch or
-retry, cross-turn persistence, fan-out plus aggregation, or a human gate. The section
-also states the coarse-first default (4–8 phase nodes; `agent` for open work, `model` for
-one judgment, `gate` for a human decision, `tool` for a known atomic action). One or two
-linear steps, or a single wrapped tool call, do not compose.
+`langgraph_compose` is for work with seams that should not be re-decided every turn:
+cross-turn persistence, parallel fan-out with aggregation, a human decision, or a retry
+boundary. The section states that principle and the hard boundaries; the numeric
+coarse-first thresholds and node-kind heuristics live in the advisory lint and the
+on-demand `describe`, not in the always-on prompt.
 
 The tool description covers mechanics (arguments, thread/resume/checkpoint, background
 job), not selection; the section covers selection, not mechanics. This split is the main
@@ -85,8 +85,10 @@ boundaries and the available moves:
 
 `langgraph_run` cannot define a graph; the model is told not to invent an id. A composed
 spec is not a file and not a DSH Session, and it is immutable: changing it means composing
-a new one. The only concrete list in the prompt is the registry itself — data the model
-must select from, not an example to copy. This is deliberate: the model should choose or
+a new one. The prompt does not prescribe a node count or a node-kind checklist: it gives
+the seam principle and the escape valve (`agent` for open work), and `describe` is the
+manual. The only concrete list in the prompt is the registry itself — data the model must
+select from, not an example to copy. This is deliberate: the model should choose or
 compose the shape, not imitate a canned one.
 
 ## Boundaries with DSH's own context
@@ -123,9 +125,9 @@ When changing this layer:
    long-term memory unless a graph uses the store.
 4. Keep the section about selection and the tool descriptions about mechanics. Compose
    mechanics live in `langgraph_compose` and its on-demand `describe`, not in the prompt.
-5. Keep the coarse-first guidance aligned with the lint: open work in `agent`, one
-   judgment in `model`, one human decision in `gate`, one known action in `tool`, and
-   no more than 4–8 phase nodes by default.
+5. Keep the prompt principle-based: seams, coarse graph, open work in `agent`. Keep
+   numeric thresholds and node-kind heuristics in the advisory lint and `describe`, not
+   in the always-on section.
 6. Keep graph descriptions one line, unique, and specific about the graph's value; avoid
    demo overlap.
 7. Re-check section order when a DSH release adds or renames prompt sections.
