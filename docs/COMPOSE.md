@@ -53,7 +53,7 @@ block; use them to merge steps into an `agent` node.
 ## Lifecycle
 
 ```
-langgraph_compose({ action: "describe" })         # the IR manual, on demand
+langgraph_compose({ action: "describe" })         # guide + law + reference + examples
 langgraph_compose({ action: "validate", spec })   # no store, no run
 langgraph_compose({ action: "compose", spec })    # store, return the id + topology
 langgraph_run({ graph: "lg_adhoc_..." })           # compile and execute
@@ -117,9 +117,9 @@ is required and must be `1`. No node id may equal a state field name; `__start__
 The reducer is one of `replace` (default), `append`, `add`, `max`, `min`, `merge`.
 `append` is for arrays; a json field with default `[]` and `append` collects one value per
 item (objects included). `add`/`max`/`min` are for numbers. `merge` shallow-merges json
-objects (`{...left, ...right}`) and does **not** concatenate arrays; use `append` with
-default `[]` to collect a list. A field written by parallel branches or a `map` body must
-be mergeable.
+objects with default `{}` (`{...left, ...right}`) and does **not** concatenate arrays; use
+`append` with default `[]` to collect a list. A field written by parallel branches or a
+`map` body must be mergeable.
 
 A `$state` reference names a top-level field. A dotted path (`data.answer`) reads into a
 `json` field only. A literal object may not use the `$state` key.
@@ -231,8 +231,8 @@ parent field named `item` or `index` is shadowed inside the body.
 - For one structured object per item, declare the field as
   `{ "type": "json", "default": [], "reducer": "append" }` and have the body write
   `{ "extracts": "json" }`; each item appends one value. `json` into `json` + `merge`
-  is for merging objects into one object, not for a list. The `describe` reply returns
-  this pattern as the `map-extract` example.
+  (default `{}`) is for merging objects into one object, not for a list. The `describe`
+  reply returns this pattern as the `map-extract` example.
 - `maxItems` defaults to 50 and is capped at 100. A longer array fails the map; it is
   never truncated.
 - `maxConcurrency` defaults to 8 and is capped at 16. In this version the strictest map
@@ -249,7 +249,7 @@ parent field named `item` or `index` is shadowed inside the body.
 
 | Action | Behaviour |
 |---|---|
-| `describe` | The IR manual and a minimal example. On demand, so it costs no prompt tokens. |
+| `describe` | The prose guide, the normative law, the vocabulary reference and archetype examples. On demand, so it costs no prompt tokens. |
 | `validate` | Parse and check; returns `{ ok, errors, warnings, topology }`; stores nothing. |
 | `compose` | Validate, build once to prove the spec compiles, store, and return `{ graph, name, input, topology, warnings, created }`. The topology is IR-level; `langgraph_threads({ action: "topology" })` returns the compiled nodes, including the hidden map fanout/join. |
 | `list` | This session's specs with thread counts. |
@@ -257,9 +257,12 @@ parent field named `item` or `index` is shadowed inside the body.
 | `delete` | Delete the spec; refuses while threads exist unless `delete_threads: true`. |
 | `fork` | Return an editable downstream spec plus the current state. |
 
-Errors carry an exact IR path (`nodes[2].do`, `edges[3].to`) and the expected shape, so a
-model can repair a spec from the reply. Tool references are checked against the tools
-visible to the calling agent at compose time and enforced again at run time.
+Errors carry an exact IR path (`nodes[2].do`, `edges[3].to`), the expected shape and,
+where useful, a hint, so a model can repair a spec from the reply. Tool references are
+checked against the tools visible to the calling agent; when the caller passes full tool
+definitions, a tool node's args are also checked against the tool's own parameters
+(required keys, unknown keys when `additionalProperties` is false, literal types, and
+top-level `$state` reference types) at compose time and enforced again at run time.
 
 ### Specs from a file
 

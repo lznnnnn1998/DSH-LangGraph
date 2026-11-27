@@ -626,6 +626,7 @@ M5 在 `executeRun` 外包一层 try/catch；节点包装器附加 `error.nodeId
 - 再按“能放松的像散文，规则像法律”拆分：guide 只讲方法论和比喻，`law` 用编号条款写 MUST/MUST NOT、reducer/map/gate/failure 的精确语义；reference 只留词汇，examples 只做 archetype。161 tests。
 - 大 fine 重跑发现手册自己写错：law/示例的 `read {path}` 与真实 DSH `read` 的 `file_path` 不符，graph 里 8 个 read 全失败。修复：guide/law/docs/示例改为 `file_path`（`write {file_path, content}`）；`validate`/`compose` 用 visible tool definition 的 parameters 校验 args（required / additionalProperties / 字面量类型），缺失或未知参数在 compose 阶段报错。162 tests。
 - 同一 fine 任务最终 55s/9 steps/226K 成功，7 个 IR 节点、11 supersteps、12 行正确；模型引用 law 的条款推理，没有读源码。fine 比 coarse 省约一半 token，default 仍最便宜。
+- 审计（2026-11-27）：逐条对 law 与实现，修掉 `merge` 接受非对象默认值（数组默认会被静默变成 `{}`）、tool args 的 `$state` ref 类型未查、advisory lint 的法律措辞、tool schema 权威、隐藏 map id 和 registered failure 说明；更新旧 docs 词；新增 merge/limits/ref 测试。165 tests；typecheck（skipLibCheck）绿。大 fine 结果不受影响。
 - 仍未测跨 turn 持久化/大规模 per-item model 且无法批量的任务；不据此收紧或继续放松 prompt。
 
 ## 13. 待定 / 风险

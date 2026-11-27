@@ -219,8 +219,8 @@ any JSON value.
 array. A json field with default [] and append collects one value per item, including
 objects.
 1.5 add, max and min MUST be used only with number.
-1.6 merge MUST be used only with json. It shallow-merges objects (...left, ...right) and
-MUST NOT be read as array concatenation.
+1.6 merge MUST be used only with a json field whose default is an object. It shallow-merges
+objects (...left, ...right) and MUST NOT be read as array concatenation.
 1.7 A state field written by a map body or by parallel branches MUST have a mergeable
 reducer. A map body MUST NOT write a field whose reducer is replace.
 1.8 A $state reference MUST name a top-level field; a dotted path enters a json field only.
@@ -231,7 +231,8 @@ __end__ or __interrupt__.
 2.2 A tool node MUST name a tool visible to the calling agent. Its args are the DSH tool's
 own args, passed through unchanged (glob {pattern}, read {file_path}, write {file_path, content});
 the compiler MUST NOT rename or wrap them. Args may contain JSON literals or $state
-references.
+references. The tool's own schema is authoritative; if an example's argument name differs,
+follow the schema.
 2.3 A model node MUST have a prompt; prompt is an array of strings and $state references.
 schema, when present, MUST be a JSON Schema object and asks for a JSON reply.
 2.4 An agent node MUST have a prompt and tools; the prompt is a prose brief and the
@@ -239,6 +240,8 @@ compiler MUST NOT inspect it.
 2.5 A subagent node MUST have a prompt; it runs in a child DSH session; schema is optional.
 2.6 A gate MUST have a question and MAY have options. options are labels shown to the user
 and MUST NOT be treated as the resume value. out transforms apply to the raw resume value.
+A bool out with options triggers the gate-bool-options warning: a label answer is not a
+boolean.
 2.7 A map MUST have over, a string[] or number[] state field that the author controls. A
 tool result such as "No files found" is one string, not an empty list. The body MUST be one
 of tool, model, agent, subagent; it MUST NOT be a gate or a nested map. The body reads item
@@ -252,12 +255,14 @@ Article 3. Edges and control.
 3.1 START MUST have no incoming edges; END MUST have no outgoing edges. A START edge MUST
 be unconditional.
 3.2 A node's outgoing edges MUST be exactly one of: one unconditional edge (sequence); one
-or more conditional edges (choice), evaluated in order, with a when: true fallback; two or
-more unconditional edges (static fan-out). Conditional and unconditional out-edges MUST
-NOT be mixed.
+or more conditional edges (choice), evaluated in order, with a when: true fallback unless
+the guards exhaust every value; two or more unconditional edges (static fan-out).
+Conditional and unconditional out-edges MUST NOT be mixed. The lint warns when it cannot
+see a fallback; a run with no matching guard fails.
 3.3 A node with multiple incoming edges MUST wait for all of them.
-3.4 A cycle MUST have a way out and a budget via maxSteps; the whole SCC is one recovery
-unit.
+3.4 A cycle MUST be designed with a way out and a budget via maxSteps; the whole SCC is one
+recovery unit. The lint warns when it cannot see a conditional exit, a numeric counter, or
+an explicit budget; maxSteps is a safety net, not a substitute for a way out.
 
 Article 4. Gates and resume.
 4.1 A gate pauses the run with {question, options, node}; langgraph_run returns status
@@ -265,14 +270,16 @@ Article 4. Gates and resume.
 4.2 To resume, the caller MUST call langgraph_run({graph, thread, resume: <raw answer>}) on
 the same thread. The resume value is the user's raw answer.
 4.3 For a label answer, the spec MUST file text and route with an eq guard. For a yes/no,
-it MAY file bool; bool accepts only a JSON boolean or the text "true"/"false".
+it MAY file bool; bool accepts only a JSON boolean or the text "true"/"false". A bool out
+with options triggers the gate-bool-options warning; labels are not booleans.
 
 Article 5. Maps.
 5.1 append order is the input order, not the completion order.
 5.2 An empty array MUST send one sentinel item so the join runs; the graph continues with
 the aggregate defaults.
-5.3 The compiler expands a map into <id>__fanout, <id> and <id>__join. The join follows
-the spec's out-edges.
+5.3 The compiler expands a map into a hidden dispatch, the body, and a hidden join; their
+ids are compiler details (typically <id>__fanout and <id>__join). The join follows the
+spec's out-edges.
 5.4 maxItems defaults to 50 and is capped at 100; a longer array fails and MUST NOT be
 truncated.
 5.5 maxConcurrency defaults to 8 and is capped at 16; the strictest map cap is applied as
@@ -289,8 +296,10 @@ or, not. There is no expression string and no eval. A missing value or type mism
 the comparison false.
 
 Article 7. Failure and recovery.
-7.1 A failed run returns status "failed" with failedNode, failedScc, pending, downstream,
-upstream, lastSupersteps, error (with itemIndex for a map item), state and hint.
+7.1 A failed composed run returns status "failed" with failedNode, failedScc, pending,
+downstream, upstream, lastSupersteps, error (with itemIndex for a map item), state and
+hint. A registered graph has no IR analysis, so its SCC/upstream/downstream fields are
+absent.
 7.2 Resume a transient error with the same thread; edit and replay a state error; fork the
 downstream or SCC for a graph bug.
 7.3 The runtime MUST NOT mutate a spec. A changed contract is a new spec and a new thread;
@@ -337,7 +346,7 @@ function describe() {
       stateField: {
         type: STATE_TYPES,
         default: 'required; must match the type',
-        'reducer?': `${REDUCERS.join(' | ')}; replace is the default`,
+        'reducer?': `${REDUCERS.join(' | ')}; replace is the default; a json list uses append with default []; a json object uses merge with default {}`,
       },
       nodes: {
         tool: {

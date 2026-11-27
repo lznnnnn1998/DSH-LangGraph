@@ -157,7 +157,10 @@ test('rejects transforms and set values that do not fit the field type', () => {
 test('checks a tool node against the visible tool schema', () => {
   const spec = {
     ir: 1,
-    state: { files: { type: 'string[]', default: [] } },
+    state: {
+      file: { type: 'string', default: '' },
+      files: { type: 'string[]', default: [] },
+    },
     nodes: [{
       id: 'read',
       do: 'tool',
@@ -181,7 +184,13 @@ test('checks a tool node against the visible tool schema', () => {
   assert.ok(bad.errors.some(error => error.path === 'nodes[0].args' && /file_path/.test(error.message)))
   assert.ok(bad.errors.some(error => error.path === 'nodes[0].args.path' && /not an argument/.test(error.message)))
 
-  spec.nodes[0].args = { file_path: { $state: 'files' } }
+  const wrongType = JSON.parse(JSON.stringify(spec))
+  wrongType.nodes[0].args = { file_path: { $state: 'files' } }
+  const wrongResult = validateSpec(wrongType, { tools: [definition] })
+  assert.equal(wrongResult.ok, false)
+  assert.ok(wrongResult.errors.some(error => error.path === 'nodes[0].args.file_path' && /expects string/.test(error.message)))
+
+  spec.nodes[0].args = { file_path: { $state: 'file' } }
   const good = validateSpec(spec, { tools: [definition] })
   assert.equal(good.ok, true, JSON.stringify(good.errors))
 })
@@ -304,6 +313,40 @@ test('rejects parallel branches that write one field without a mergeable reducer
   const result = validateSpec(spec)
   assert.equal(result.ok, false)
   assert.ok(result.errors.some(error => error.path === 'state.all' && /parallel branches/.test(error.message)))
+})
+
+test('bounds the spec JSON size and the number of state fields', () => {
+  const huge = clone(minimal())
+  huge.state.text.default = 'x'.repeat(300 * 1024)
+  const hugeResult = validateSpec(huge)
+  assert.equal(hugeResult.ok, false)
+  assert.ok(hugeResult.errors.some(error => /limit is 262144/.test(error.message)))
+
+  const wide = clone(minimal())
+  for (let index = 0; index < 65; index += 1) {
+    wide.state[`f${index}`] = { type: 'string', default: '' }
+  }
+  const wideResult = validateSpec(wide)
+  assert.equal(wideResult.ok, false)
+  assert.ok(wideResult.errors.some(error => /too many state fields/.test(error.message)))
+})
+
+test('merge needs a json object default', () => {
+  const spec = {
+    ir: 1,
+    state: { doc: { type: 'json', default: {}, reducer: 'merge' } },
+    nodes: [{ id: 'one', do: 'set', values: { doc: { a: 1 } } }],
+    edges: [{ from: 'START', to: 'one' }, { from: 'one', to: 'END' }],
+  }
+  assert.equal(validateSpec(spec).ok, true)
+
+  const bad = clone(spec)
+  bad.state.doc.default = []
+  const result = validateSpec(bad)
+  assert.equal(result.ok, false)
+  const error = result.errors.find(item => item.path === 'state.doc.reducer')
+  assert.ok(error)
+  assert.match(error.hint, /default \{\}/)
 })
 
 test('collects one json object per map item with json + append', () => {

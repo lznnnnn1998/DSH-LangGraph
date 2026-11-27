@@ -218,7 +218,12 @@ explicit request or at the end of the batch.
   and 12 correct rows. It used about half the coarse graph's tokens (462K) and slightly
   more than the default loop (124K / 53s). The earlier "fine is harmful" result was the
   manual and validation, not the fine graph.
-- 162 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
+- The audit found and fixed: `merge` accepted a non-object json default (an array default
+  became `{}`), tool `$state` refs were not type-checked against the tool schema, the law
+  overstated three advisory lints, and docs still said "IR manual/minimal example".
+  Hidden map ids, registered-graph failure fields and the tool-schema authority are now
+  stated precisely; merge/limit/ref tests added. 165 tests; typecheck (skipLibCheck) green.
+- 165 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
   the user's explicit go-ahead.
 
 ## 0.14.0 — sandboxed graph worker (DEFERRED — not a small version)

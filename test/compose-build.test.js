@@ -289,6 +289,25 @@ test('rejects an invalid spec before building a graph', () => {
   )
 })
 
+test('merge shallow-merges json objects', async () => {
+  const spec = {
+    ir: 1,
+    state: { doc: { type: 'json', default: {}, reducer: 'merge' } },
+    nodes: [
+      { id: 'a', do: 'set', values: { doc: { x: 1 } } },
+      { id: 'b', do: 'set', values: { doc: { y: 2 } } },
+    ],
+    edges: [
+      { from: 'START', to: 'a' },
+      { from: 'a', to: 'b' },
+      { from: 'b', to: 'END' },
+    ],
+  }
+  const compiled = compileSpec(spec, {})
+  const state = await compiled.invoke({}, { configurable: { thread_id: 'merge-json' } })
+  assert.deepEqual(state.doc, { x: 1, y: 2 })
+})
+
 test('keeps a fan-out field mergeable when the reducer is append', () => {
   const spec = clone(fixture('parallel'))
   const graph = buildSpecGraph({ ...langgraph, helpers: {} }, spec)

@@ -83,7 +83,7 @@ module.
 - **Recovery.** Resume the same thread for a transient error; `edit` the failure
   checkpoint and replay for a bad state; `fork` the downstream (or the whole SCC) into a
   new editable spec for a graph bug. The runtime never mutates a spec.
-- **Compose tool.** `describe` is an on-demand IR manual; `validate` stores nothing;
+- **Compose tool.** `describe` is the on-demand guide/law/reference/examples; `validate` stores nothing;
   `compose` previews and stores; `list`, `get`, and `delete` are owner-scoped; `fork`
   returns the downstream skeleton and the thread's current state. A workspace `.json`
   path is read only inside the session cwd.

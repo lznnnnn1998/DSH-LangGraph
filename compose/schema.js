@@ -65,7 +65,7 @@ function reducerFits(reducer, type, defaultValue) {
     case 'min':
       return type === 'number'
     case 'merge':
-      return type === 'json'
+      return type === 'json' && isPlainObject(defaultValue)
     default:
       return false
   }
@@ -550,8 +550,29 @@ export function validateSpec(input, options = {}) {
       }
     }
     for (const [key, value] of Object.entries(args)) {
-      if (hasStateKey(value)) continue
       const propSchema = properties[key]
+      if (hasStateKey(value)) {
+        const ref = isPlainObject(value) && typeof value.$state === 'string' ? value.$state : undefined
+        const expected = isPlainObject(propSchema) && typeof propSchema.type === 'string' ? propSchema.type : undefined
+        if (ref !== undefined && expected !== undefined && !ref.includes('.')) {
+          const field = stateFields.get(ref)
+          const fits = field === undefined || field.type === 'json'
+            ? true
+            : expected === 'string'
+              ? field.type === 'string'
+              : expected === 'number' || expected === 'integer'
+                ? field.type === 'number'
+                : expected === 'boolean'
+                  ? field.type === 'boolean'
+                  : expected === 'array'
+                    ? field.type === 'string[]' || field.type === 'number[]'
+                    : true
+          if (!fits) {
+            fail(`${path}.${key}`, `state reference "${ref}" is ${field.type}, but tool "${toolName}" expects ${expected}`, expected, 'A $state reference must match the tool argument type; use a field of the expected type.')
+          }
+        }
+        continue
+      }
       if (!isPlainObject(propSchema)) continue
       for (const problem of validateSchemaValue(value, propSchema, `${path}.${key}`)) {
         fail(`${path}.${key}`, problem, undefined, `Argument "${key}" of tool "${toolName}" does not match the tool's schema.`)
@@ -687,7 +708,7 @@ export function validateSpec(input, options = {}) {
       if (field.reducer !== undefined && !REDUCERS.includes(field.reducer)) {
         fail(`${path}.reducer`, `unknown reducer ${JSON.stringify(field.reducer)}`, REDUCERS.join(' | '))
       } else if (typeKnown && !reducerFits(reducer, field.type, field.default)) {
-        fail(`${path}.reducer`, `reducer "${reducer}" is not compatible with type "${field.type}" and this default`, 'replace', 'For a json list, use type json, default [], reducer append; for a json object, use merge. merge shallow-merges objects and does not concatenate arrays.')
+        fail(`${path}.reducer`, `reducer "${reducer}" is not compatible with type "${field.type}" and this default`, 'replace', 'For a json list, use type json, default [], reducer append; for a json object, use type json, default {}, reducer merge. merge shallow-merges objects and does not concatenate arrays.')
       }
       // Keep a best-effort entry even after a type error, so later messages do
       // not cascade into "unknown field" for every reference.
