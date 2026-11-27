@@ -15,3 +15,6 @@ preview/
 
 # OS / editor noise
 .DS_Store
+
+media/raw/
+bench/results-harness.err

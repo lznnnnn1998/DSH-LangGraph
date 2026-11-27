@@ -107,6 +107,19 @@
   .section-head h2 { font-size: 30px; letter-spacing: -.03em; margin: 0; font-weight: 680; }
   .section-head p { margin: 0; color: var(--muted); font-size: 13px; max-width: 500px; }
   .section-head .eyebrow { color: var(--faint); font-family: var(--mono); font-size: 10px; letter-spacing: .13em; text-transform: uppercase; margin-bottom: 7px; }
+  .demo-grid { display: grid; grid-template-columns: 1.35fr .65fr; gap: 18px; align-items: stretch; }
+  .demo-video { position: relative; border: 1px solid var(--line-strong); border-radius: 15px; overflow: hidden; background: #05080d; box-shadow: 0 24px 70px rgba(0,0,0,.38); }
+  .demo-video video { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: #05080d; }
+  .demo-caption { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 9px; background: rgba(6,10,16,.82); backdrop-filter: blur(12px); color: var(--muted); font-family: var(--mono); font-size: 9.5px; pointer-events: none; }
+  .demo-video .live { font-size: 9.5px; }
+  .demo-copy { border: 1px solid var(--line); border-radius: 15px; padding: 20px; background: linear-gradient(180deg, rgba(17,26,42,.72), rgba(10,15,24,.82)); }
+  .demo-copy h3 { font-size: 21px; letter-spacing: -.02em; margin: 0 0 10px; }
+  .demo-copy p { color: var(--muted); font-size: 12.5px; margin: 0 0 18px; }
+  .demo-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .demo-stats div { border: 1px solid var(--line); border-radius: 9px; padding: 10px; background: rgba(255,255,255,.015); }
+  .demo-stats b { display: block; font-size: 19px; letter-spacing: -.03em; color: var(--ink); }
+  .demo-stats span { display: block; color: var(--faint); font-family: var(--mono); font-size: 9px; margin-top: 2px; }
+  .demo-copy .btn { width: 100%; justify-content: center; margin-top: 8px; }
   .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
   .card {
     position: relative; border: 1px solid var(--line); border-radius: 15px; overflow: hidden;
@@ -161,7 +174,7 @@
     .hero-visual { min-height: 360px; }
     .hero-card { transform: none; }
     .cards { grid-template-columns: repeat(2, 1fr); }
-    .how, .honest { grid-template-columns: 1fr; }
+    .demo-grid, .how, .honest { grid-template-columns: 1fr; }
     .safety { grid-template-columns: repeat(2, 1fr); }
     .nav-links a:not(.pill) { display: none; }
   }
@@ -184,6 +197,7 @@
   <nav>
     <a class="brand" href="../README.md"><img src="../icon.svg" alt=""><span>dsh-langgraph</span><small>gallery</small></a>
     <div class="nav-links">
+      <a href="#demo">Demo</a>
       <a href="#graphs">Graphs</a>
       <a href="#how">How it works</a>
       <a href="#honest">Benchmark</a>
@@ -225,6 +239,35 @@
       </div>
     </div>
   </header>
+
+  <section id="demo">
+    <div class="section-head">
+      <div><div class="eyebrow">Real session · 57s</div><h2>Not a mock.</h2></div>
+      <p>Recorded from the actual DSH Web app: a 12-topic brief, two 12-item maps, a human gate, and a 12-row output. The video is the transcript and the panel, not an illustration.</p>
+    </div>
+    <div class="demo-grid">
+      <div class="demo-video">
+        <video controls muted playsinline preload="metadata" poster="assets/session.png">
+          <source src="../media/dsh-langgraph-demo.webm" type="video/webm">
+          Your browser does not support the video tag.
+        </video>
+        <div class="demo-caption"><span class="live">real DSH session</span><span>55s · 226K tokens · 12 rows</span></div>
+      </div>
+      <div class="demo-copy">
+        <div class="eyebrow">The shape</div>
+        <h3>Two maps, one signature.</h3>
+        <p>The graph reads 12 files, extracts one JSON object per file, drafts the outline, and pauses. The human approves the outline; the same thread resumes and writes the brief.</p>
+        <div class="demo-stats">
+          <div><b>12</b><span>files</span></div>
+          <div><b>2 × 12</b><span>maps</span></div>
+          <div><b>1</b><span>gate</span></div>
+          <div><b>55s</b><span>wall time</span></div>
+        </div>
+        <a class="btn btn-ghost" href="specs/research-brief.lg.json">Open the spec <span>↗</span></a>
+        <a class="btn btn-ghost" href="../docs/BENCHMARK.md">See the benchmark</a>
+      </div>
+    </div>
+  </section>
 
   <section id="graphs">
     <div class="section-head">

@@ -1,0 +1,125 @@
+[
+  {
+    "task": "fanout",
+    "condition": "official",
+    "profile": "headless",
+    "success": true,
+    "seconds": 16,
+    "steps": 5,
+    "tokens": {
+      "input": 1464,
+      "output": 799,
+      "total": 72535
+    },
+    "tools": {
+      "read": 8,
+      "bash": 2,
+      "write": 1
+    },
+    "result": "36",
+    "exit": 0,
+    "stderr": "[llm-deepseek-api-key] model listing from https://api.deepseek.com/models loaded 2 model(s), skipped 0 row(s)\n"
+  },
+  {
+    "task": "fanout",
+    "condition": "plain",
+    "profile": "lgh",
+    "success": true,
+    "seconds": 9,
+    "steps": 4,
+    "tokens": {
+      "input": 1059,
+      "output": 785,
+      "total": 65204
+    },
+    "tools": {
+      "read": 9,
+      "write": 1
+    },
+    "result": "36",
+    "exit": 0,
+    "stderr": "[llm-deepseek-api-key] model listing from https://api.deepseek.com/models loaded 2 model(s), skipped 0 row(s)\n"
+  },
+  {
+    "task": "fanout",
+    "condition": "default",
+    "profile": "lgh",
+    "success": true,
+    "seconds": 9,
+    "steps": 4,
+    "tokens": {
+      "input": 1265,
+      "output": 643,
+      "total": 63988
+    },
+    "tools": {
+      "bash": 1,
+      "read": 8,
+      "write": 1
+    },
+    "result": "36",
+    "exit": 0,
+    "stderr": "[llm-deepseek-api-key] model listing from https://api.deepseek.com/models loaded 2 model(s), skipped 0 row(s)\n"
+  },
+  {
+    "task": "report",
+    "condition": "official",
+    "profile": "headless",
+    "success": true,
+    "seconds": 7,
+    "steps": 3,
+    "tokens": {
+      "input": 617,
+      "output": 315,
+      "total": 41124
+    },
+    "tools": {
+      "read": 3,
+      "write": 1
+    },
+    "result": "Beta: Chen",
+    "exit": 0,
+    "stderr": "[llm-deepseek-api-key] model listing from https://api.deepseek.com/models loaded 2 model(s), skipped 0 row(s)\n"
+  },
+  {
+    "task": "report",
+    "condition": "plain",
+    "profile": "lgh",
+    "success": true,
+    "seconds": 9,
+    "steps": 4,
+    "tokens": {
+      "input": 1045,
+      "output": 405,
+      "total": 63274
+    },
+    "tools": {
+      "read": 4,
+      "write": 1
+    },
+    "result": "Beta: Chen",
+    "exit": 0,
+    "stderr": "[llm-deepseek-api-key] model listing from https://api.deepseek.com/models loaded 2 model(s), skipped 0 row(s)\n"
+  },
+  {
+    "task": "report",
+    "condition": "default",
+    "profile": "lgh",
+    "success": true,
+    "seconds": 10,
+    "steps": 5,
+    "tokens": {
+      "input": 1096,
+      "output": 491,
+      "total": 79667
+    },
+    "tools": {
+      "read": 4,
+      "bash": 1,
+      "write": 1
+    },
+    "result": "Beta: Chen",
+    "exit": 0,
+    "stderr": "[llm-deepseek-api-key] model listing from https://api.deepseek.com/models loaded 2 model(s), skipped 0 row(s)\n"
+  }
+]
