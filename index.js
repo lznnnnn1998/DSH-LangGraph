@@ -181,9 +181,9 @@ export function renderGraphPrompt(registry, ready) {
     'Start from the ledger and the seams, not the boxes. Keep the graph coarse: put open-ended work in '
       + 'an `agent` node and let its brief carry the detail; use a smaller node only when that step is '
       + 'itself the contract. Put "how" in the brief and "what/when" in the edges.',
-    'Before the first compose, call `langgraph_compose({ action: "describe" })` and read its guide first: '
-      + 'it is the whole contract, followed by the reference and archetype examples. The compiler is '
-      + 'deterministic and never uses a model to translate the IR.',
+    'Before the first compose, call `langgraph_compose({ action: "describe" })`: read its guide first '
+      + 'for the method, then its law as the normative contract. The reference and archetype examples '
+      + 'follow. The compiler is deterministic and never uses a model to translate the IR.',
     'A composed graph is an immutable session-owned spec, not a file and not a DSH Session; change it '
       + 'by composing a new spec. It does not appear in the registered list: call '
       + '`langgraph_compose({ action: "list" })` or `langgraph_run` with no graph. Use ordinary DSH tools '
@@ -1588,7 +1588,7 @@ export function apply(ctx, config) {
   ctx.effect(() => ctx.tools.register({
     name: COMPOSE_TOOL,
     description: 'Compose a session-owned LangGraph graph from a strict JSON GraphSpec, then run it with '
-      + '`langgraph_run`. Actions: `describe` (the guide, reference and archetype examples), `validate`, '
+      + '`langgraph_run`. Actions: `describe` (the guide, law, reference and archetype examples), `validate`, '
       + '`compose`, `list`, `get`, `delete`, `fork`. Read the guide before the first compose; it is the '
       + 'whole contract. Keep the graph coarse; open-ended work belongs in an `agent` node. A composed graph is an immutable '
       + 'session spec, not a file and not a DSH Session. After a failure, `fork` from the failed node '

@@ -16,8 +16,10 @@ The division of labour is deliberate:
 
 ## How to think about a composed graph
 
-The model-facing `describe` reply starts with a guide. Treat it as the contract, not a
-field list. In one paragraph: a graph is a contract about seams; the state is the ledger
+The model-facing `describe` reply separates a prose **guide** (why and how to think) from
+a normative **law** (numbered MUST/MUST NOT rules), then gives the vocabulary reference
+and archetype examples. The guide is written to be read as a mentor; the law is written
+to be obeyed as a contract. In one paragraph: a graph is a contract about seams; the state is the ledger
 that survives a seam, a node is a role that files one result, an edge is a handoff, a map
 is one role repeated over a list, a gate is a signature, and a transform is the form a
 result takes when filed. Start from the ledger and the seams, not the boxes; keep the

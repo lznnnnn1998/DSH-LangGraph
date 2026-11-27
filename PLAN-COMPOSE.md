@@ -621,7 +621,8 @@ M5 在 `executeRun` 外包一层 try/catch；节点包装器附加 `error.nodeId
 - 小 fine e2e（3 topic）：模型 describe → compose（5 节点 map/gate/write）→ 按 lint 修 spec → run → gate → approve → 写 `small-fine.md`；**没有读源码**；1m3s/238K（含一次 glob 从 12 缩到 3 的 scope 修正），3 topic 正确。
 - 大 fine 重跑又暴露一个 design gap：map body 每 item 的 JSON 结果没有可收集方式——`json` + `append` 被拒、`merge` 是否拼数组不明，模型再次去 grep 源码。修复：允许 `json` default `[]` + `append`；describe 增加 `reducerNotes` 和 `map-extract` 示例；docs 说明 `merge` 不拼接数组；161 tests。
 - 大 fine 第二次重跑又在 tool args 上翻源码：describe 没说 args 原样透传、用 DSH 工具自己的参数名（`read {path}` 等）。修复：`nodes.tool.args`、guidance 和 docs 明确 unchanged；161 tests。
-- 用户指出这是“按下葫芦浮起瓢”：逐条补 hint 不能替代整体描述。把 model-facing `describe` 重写成一份自洽的 guide（contract / seam / ledger / role / handoff / signature / form），把精确 reference 和 archetype examples 分开；prompt 用同一套词汇并先指向 guide。161 tests。大 fine 重跑待完成。
+- 用户指出这是“按下葫芦浮起瓢”：逐条补 hint 不能替代整体描述。把 model-facing `describe` 重写成一份自洽的 guide（contract / seam / ledger / role / handoff / signature / form），把精确 reference 和 archetype examples 分开；prompt 用同一套词汇并先指向 guide。161 tests。
+- 再按“能放松的像散文，规则像法律”拆分：guide 只讲方法论和比喻，`law` 用编号条款写 MUST/MUST NOT、reducer/map/gate/failure 的精确语义；reference 只留词汇，examples 只做 archetype。161 tests。大 fine 重跑待完成。
 - 仍未测跨 turn 持久化/大规模 per-item model 且无法批量的任务；不据此收紧或继续放松 prompt。
 
 ## 13. 待定 / 风险

@@ -179,19 +179,16 @@ human has signed, a list has been worked through. The state is the ledger that s
 those moments. A node is a role that reads the ledger and files one result. An edge is a
 handoff: it says which role may act next, or which question decides the route. A map is
 one role repeated over a list. A gate is a signature. A transform is the form a result
-takes when it is filed. The compiler is a clerk: it turns your contract into a LangGraph
+takes when it is filed. The compiler is a clerk: it turns the contract into a LangGraph
 exactly as written, with no interpretation, no model and no creativity. Write it so a
 careful colleague could execute it without asking what you meant.
 
 Start from the ledger, not the boxes. Ask what must still be true after each phase: the
 files that were found, the extracted facts, the outline, the decision, the text that will
-be written. Those are state fields. Give each field the type that describes its shape and
-the reducer that describes how many writers may settle it. replace is one writer. append
-is a list of contributions. add, max and min are numeric claims. merge is a shallow merge
-of one object. A list of per-item objects is a json field with default [] and append;
-merge is for a single object and does not concatenate arrays. If a field has many writers,
-a map body or parallel branches, its reducer must accept many contributions. A map body
-that writes a replace field is a contradiction, not a style choice.
+be written. Those are the state fields. Their types and reducers are the ledger's rules
+for what a value is and how many writers may settle it; the law below states them
+exactly. The shape of the ledger will usually tell you the shape of the graph before you
+draw a single edge.
 
 Then find the seams. A seam is a place where the next step cannot be decided in advance:
 a judgment that changes the route, a list that must be worked in parallel, a human
@@ -201,43 +198,107 @@ brief; let the role carry the detail. A fine graph is justified only when the st
 is the contract; otherwise the graph is a ceremony around a loop. Start coarse; split only
 where a seam demands it.
 
-The ledger has a small vocabulary: string, number, boolean, json, string[], number[]. The
-forms are the boundary between a role's result and the ledger: text for a sentence, lines
-for a list, json for structure, bool for a yes/no, number, count and first for scalars.
-Choose the form that preserves what the next role needs. If you want a new form, you
-probably want a different state shape instead. A tool node is a direct call: its args are
-the DSH tool's own args, passed through unchanged (glob {pattern}, read {path}, write
-{path, content}). The compiler does not rename or wrap them. A model node is one judgment;
-an agent node is an open brief with tools; a subagent is a separate session; a gate is a
-signature. A gate pauses with a question and option labels; the answer is raw and goes
-through out. For a label answer, file text and let an eq guard route; for a yes/no, file
-bool. The options are labels, not the answer. The run returns status interrupted with the
-thread and interrupts; ask the user, then resume the same thread with
-langgraph_run({ graph, thread, resume: <raw answer> }).
+The rest is bookkeeping with consequences. A tool node is a direct call; a model node is
+one judgment; an agent is an open brief; a subagent is a separate session; a gate is a
+signature. The edges decide sequence, choice, fan-out and join; a map expands one role
+over a list; the join is where the ledger settles. The law below is the part you may not
+reinterpret: it fixes the state vocabulary, the reducers, the node contracts, the edge
+rules, the map and gate semantics, the failure result and the limits. The reference after
+it is only the vocabulary; the examples are archetypes, not templates. If a case is not in
+them, reason from the ledger, the seams, the roles and the forms. The plugin's source is
+an implementation of this contract, not a second manual.
+`.trim()
 
-Edges are the only control flow. One unconditional edge is a sequence. Conditional edges
-are a choice, evaluated in order, and need a when: true fallback; without one, a run with
-no match fails. Two or more unconditional edges are a static fan-out; a node with several
-incoming edges waits for all of them. A cycle is a loop: give it a way out and a budget
-(maxSteps); if the loop is the work, treat the whole SCC as one recovery unit. A map is
-implicit fan-out: you author the role and the edges; the compiler expands dispatch, body
-and join. The body reads item and index, and its out fields are transactions into
-mergeable parent fields; append follows input order, not completion order. An empty list
-still sends a sentinel so the join runs; the contract continues with the defaults.
+const LAW = `
+Article 1. State.
+1.1 A state field MUST declare type and default, and the default MUST match the type.
+1.2 The types are string, number, boolean, json, string[], number[]. A json default may be
+any JSON value.
+1.3 The reducers are replace, append, add, max, min, merge; replace is the default.
+1.4 append MUST be used only with string[], number[], or a json field whose default is an
+array. A json field with default [] and append collects one value per item, including
+objects.
+1.5 add, max and min MUST be used only with number.
+1.6 merge MUST be used only with json. It shallow-merges objects (...left, ...right) and
+MUST NOT be read as array concatenation.
+1.7 A state field written by a map body or by parallel branches MUST have a mergeable
+reducer. A map body MUST NOT write a field whose reducer is replace.
+1.8 A $state reference MUST name a top-level field; a dotted path enters a json field only.
 
-When the compiler rejects a spec, it is not asking you to debug the compiler; it is
-telling you that the ledger and the contract disagree. Read the IR path, then ask the
-four questions: is the state shape right, is this a seam or a role, is the role's result
-in the right form, and does the field accept this many writers? The error's hint names the
-archetype. When a run fails, the failure result names the failed seam, its cycle, the
-upstream that succeeded, the downstream that waits, and the checkpoint. Resume a
-transient; edit and replay a state error; fork the downstream for a graph bug. The runtime
-never rewrites a spec; a changed contract is a new spec and a new thread.
+Article 2. Nodes.
+2.1 A node id MUST be unique, MUST NOT equal a state field name, and MUST NOT be __start__,
+__end__ or __interrupt__.
+2.2 A tool node MUST name a tool visible to the calling agent. Its args are the DSH tool's
+own args, passed through unchanged (glob {pattern}, read {path}, write {path, content});
+the compiler MUST NOT rename or wrap them. Args may contain JSON literals or $state
+references.
+2.3 A model node MUST have a prompt; prompt is an array of strings and $state references.
+schema, when present, MUST be a JSON Schema object and asks for a JSON reply.
+2.4 An agent node MUST have a prompt and tools; the prompt is a prose brief and the
+compiler MUST NOT inspect it.
+2.5 A subagent node MUST have a prompt; it runs in a child DSH session; schema is optional.
+2.6 A gate MUST have a question and MAY have options. options are labels shown to the user
+and MUST NOT be treated as the resume value. out transforms apply to the raw resume value.
+2.7 A map MUST have over, a string[] or number[] state field that the author controls. A
+tool result such as "No files found" is one string, not an empty list. The body MUST be one
+of tool, model, agent, subagent; it MUST NOT be a gate or a nested map. The body reads item
+and index; its out fields MUST write mergeable parent fields. A body id is optional and
+ignored.
+2.8 A set node MUST have values; values are literals or $state references; there is no
+arithmetic.
+2.9 A node's out MUST map state fields to transforms; a transform MUST fit the field type.
 
-The reference below is the exact vocabulary. The examples are archetypes, not templates:
-copy the shape, not the names. If a case is not in them, reason from the ledger, the
-seams, the roles and the forms. The plugin's source is an implementation of this
-contract, not a second manual.
+Article 3. Edges and control.
+3.1 START MUST have no incoming edges; END MUST have no outgoing edges. A START edge MUST
+be unconditional.
+3.2 A node's outgoing edges MUST be exactly one of: one unconditional edge (sequence); one
+or more conditional edges (choice), evaluated in order, with a when: true fallback; two or
+more unconditional edges (static fan-out). Conditional and unconditional out-edges MUST
+NOT be mixed.
+3.3 A node with multiple incoming edges MUST wait for all of them.
+3.4 A cycle MUST have a way out and a budget via maxSteps; the whole SCC is one recovery
+unit.
+
+Article 4. Gates and resume.
+4.1 A gate pauses the run with {question, options, node}; langgraph_run returns status
+"interrupted" with the thread and interrupts.
+4.2 To resume, the caller MUST call langgraph_run({graph, thread, resume: <raw answer>}) on
+the same thread. The resume value is the user's raw answer.
+4.3 For a label answer, the spec MUST file text and route with an eq guard. For a yes/no,
+it MAY file bool; bool accepts only a JSON boolean or the text "true"/"false".
+
+Article 5. Maps.
+5.1 append order is the input order, not the completion order.
+5.2 An empty array MUST send one sentinel item so the join runs; the graph continues with
+the aggregate defaults.
+5.3 The compiler expands a map into <id>__fanout, <id> and <id>__join. The join follows
+the spec's out-edges.
+5.4 maxItems defaults to 50 and is capped at 100; a longer array fails and MUST NOT be
+truncated.
+5.5 maxConcurrency defaults to 8 and is capped at 16; the strictest map cap is applied as
+the whole run's cap.
+
+Article 6. Transforms and guards.
+6.1 The transforms are text (string), lines (string[]), json (json), bool (boolean;
+accepts a JSON boolean or text "true"/"false"), number (number), first (first line or item
+as string), count (number of lines or items).
+6.2 A transform MUST fit the field type; a model with a string schema MAY write json into
+a string field; a map body MAY write a scalar into an array field with append.
+6.3 A guard is true, false, or {op, args} with eq, ne, in, gt, gte, lt, lte, exists, and,
+or, not. There is no expression string and no eval. A missing value or type mismatch makes
+the comparison false.
+
+Article 7. Failure and recovery.
+7.1 A failed run returns status "failed" with failedNode, failedScc, pending, downstream,
+upstream, lastSupersteps, error (with itemIndex for a map item), state and hint.
+7.2 Resume a transient error with the same thread; edit and replay a state error; fork the
+downstream or SCC for a graph bug.
+7.3 The runtime MUST NOT mutate a spec. A changed contract is a new spec and a new thread;
+at-least-once applies.
+
+Article 8. Limits.
+8.1 Nodes 64; edges 128; state fields 64; spec JSON 256 KiB; maxSteps 1-200 (default 25);
+map maxItems 1-100 (default 50); map maxConcurrency 1-16 (default 8); specs per session 64.
 `.trim()
 
 /** Short IR topology for `validate`, which does not build a LangGraph. */
@@ -261,6 +322,7 @@ function describe() {
   return {
     ir: IR_VERSION,
     guide: GUIDE,
+    law: LAW,
     reference: {
       topLevel: {
         ir: IR_VERSION,
