@@ -10,14 +10,17 @@
 import { readFile, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, relative, resolve } from 'node:path'
 import {
+  END,
   GUARD_OPS,
   IR_VERSION,
   LIMITS,
   MAP_BODY_KINDS,
   REDUCERS,
+  START,
   STATE_TYPES,
   TRANSFORMS,
 } from './constants.js'
+import { analyze, downstreamOf, upstreamOf } from './analysis.js'
 import { buildSpecGraph } from './build.js'
 import { inputSchemaOf } from './resolve.js'
 import { validateSpec } from './schema.js'
@@ -25,7 +28,7 @@ import { specId } from './specs.js'
 import { isPlainObject } from './template.js'
 
 /** Actions this tool version accepts. */
-export const COMPOSE_ACTIONS = Object.freeze(['describe', 'validate', 'compose', 'list', 'get', 'delete'])
+export const COMPOSE_ACTIONS = Object.freeze(['describe', 'validate', 'compose', 'list', 'get', 'delete', 'fork'])
 
 /** A small, valid spec returned by `describe`. */
 const EXAMPLE = Object.freeze({
@@ -162,6 +165,7 @@ function describe() {
       'START has no incoming edges; END has no outgoing edges; do not mix conditional and unconditional out-edges from one node.',
       'Use map for dynamic fan-out over a string[] or number[] field. The body reads { $state: "item" } and { $state: "index" }; its out fields need append/add/max/min/merge reducers, and append order is the input order.',
       'Use subagent when the work deserves its own DSH session; prompt is the child task and schema asks for structured output.',
+      'After a failure, read failedScc, upstream and downstream from the failure result. To change the graph, call fork with the failed node: it returns the downstream spec and the thread state; edit the spec, compose it, and run it with that state as input.',
       'A composed graph is immutable and session-owned: to change it, compose a new spec and start a new thread.',
       'Run the result with langgraph_run({ graph: "<id>" }); do not invent an id.',
     ],
@@ -231,6 +235,7 @@ export function createComposeTool(deps) {
     getVisibleTools = () => [],
     getSessionId = () => undefined,
     getCwd = () => undefined,
+    readStateOf,
   } = deps
 
   function sessionOf(exec) {
@@ -317,6 +322,73 @@ export function createComposeTool(deps) {
     return { deleted: id, threadsDeleted: threads.length }
   }
 
+  async function fork(exec, args) {
+    const sessionId = sessionOf(exec)
+    if (sessionId === undefined) return { error: 'forking a composed graph needs a calling session' }
+    const id = graphArg(args)
+    if (id === '') return { error: '`graph` is required to fork a composed graph' }
+    const from = typeof args?.from === 'string' ? args.from.trim() : ''
+    if (from === '') return { error: '`from` is required: the failed node to fork from' }
+    const store = await ensureSpecStore()
+    const spec = store.getSpec(id, sessionId)
+    if (spec === undefined) return { error: `no composed graph "${id}" in this session` }
+    const analysis = analyze(spec)
+    if (!analysis.nodes.has(from)) {
+      return { error: `"${from}" is not a node in "${id}"`, nodes: [...analysis.nodes.keys()].sort() }
+    }
+
+    const scc = [...analysis.sccs[analysis.sccOf.get(from)]]
+    const reachable = downstreamOf(analysis, scc)
+    const downstreamNodes = reachable.filter(node => analysis.nodes.has(node))
+    const downstreamSet = new Set(downstreamNodes)
+    const upstream = upstreamOf(analysis, [from]).filter(node => node !== from && !scc.includes(node))
+    // START points at the failed region's external entries; a loop with no
+    // external entry (a disconnected cycle) starts at the failed node.
+    const externalEntries = downstreamNodes.filter(node =>
+      (analysis.incoming.get(node) ?? []).some(edge => !downstreamSet.has(edge.from)))
+    const entries = externalEntries.length > 0 ? externalEntries : [from]
+
+    const forkSpec = {
+      ir: spec.ir,
+      name: `${spec.name ?? 'graph'} (fork)`,
+      description: `${spec.description ?? 'A composed graph'} (forked downstream of ${from})`,
+      state: JSON.parse(JSON.stringify(spec.state)),
+      nodes: spec.nodes
+        .filter(node => downstreamSet.has(node.id))
+        .map(node => JSON.parse(JSON.stringify(node))),
+      edges: [
+        ...entries.map(node => ({ from: START, to: node })),
+        ...spec.edges
+          .filter(edge => downstreamSet.has(edge.from) && (edge.to === END || downstreamSet.has(edge.to)))
+          .map(edge => JSON.parse(JSON.stringify(edge))),
+      ],
+      ...(Array.isArray(spec.output) ? { output: [...spec.output] } : {}),
+      ...(Number.isInteger(spec.maxSteps) ? { maxSteps: spec.maxSteps } : {}),
+    }
+    const validation = validateSpec(forkSpec, { tools: getVisibleTools(exec) })
+    let state
+    if (typeof args?.thread === 'string' && args.thread.trim() !== '' && typeof readStateOf === 'function') {
+      try {
+        state = await readStateOf(id, args.thread.trim(), sessionId)
+      } catch (error) {
+        return { error: `cannot read thread "${args.thread.trim()}": ${error?.message ?? error}` }
+      }
+    }
+    return {
+      graph: id,
+      from,
+      failedScc: scc,
+      downstream: reachable,
+      upstream,
+      ...(state === undefined ? {} : { state }),
+      ok: validation.ok,
+      errors: validation.errors,
+      warnings: validation.warnings,
+      spec: forkSpec,
+      hint: 'Edit the spec, then call compose; run the new graph with the current state as input.',
+    }
+  }
+
   return async function composeGraph(args, exec) {
     const action = typeof args?.action === 'string' ? args.action.trim() : ''
     if (action === 'describe') return describe()
@@ -326,6 +398,7 @@ export function createComposeTool(deps) {
     if (action === 'list') return await list(exec, args)
     if (action === 'get') return await get(exec, args)
     if (action === 'delete') return await remove(exec, args)
+    if (action === 'fork') return await fork(exec, args)
 
     if (action === 'compose') {
       const sessionId = sessionOf(exec)
@@ -343,9 +416,10 @@ export function createComposeTool(deps) {
         input: inputSchemaOf(loaded.spec),
         build: api => buildSpecGraph(api, loaded.spec),
       }
-      let topology
       try {
-        topology = await topologyOf(entry)
+        // Build once to prove the spec compiles; the reply shows the IR
+        // topology, not the compiler's hidden map fanout/join nodes.
+        await topologyOf(entry)
       } catch (error) {
         return {
           ok: false,
@@ -365,8 +439,8 @@ export function createComposeTool(deps) {
         graph: saved.id,
         ...(typeof loaded.spec.name === 'string' ? { name: loaded.spec.name } : {}),
         ...(typeof loaded.spec.description === 'string' ? { description: loaded.spec.description } : {}),
-        input: topology.input,
-        topology: { nodes: topology.nodes, edges: topology.edges },
+        input: inputSchemaOf(loaded.spec),
+        topology: irTopology(loaded.spec),
         created: saved.created,
         warnings: validation.warnings,
         hint: `Run it with \`langgraph_run({ graph: "${saved.id}" })\`; inspect threads with \`langgraph_threads\`.`,

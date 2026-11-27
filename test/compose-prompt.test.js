@@ -42,6 +42,9 @@ test('the prompt teaches composing, coarse-first, and immutability', () => {
   assert.match(text, /one node per tool call/)
   assert.match(text, /immutable session-owned spec/)
   assert.match(text, /not a DSH Session/)
+  assert.match(text, /status: "failed"/)
+  assert.match(text, /lastSupersteps/)
+  assert.match(text, /action: "fork"/)
   assert.doesNotMatch(text, /cannot define a new one/)
   assert.match(text, /Registered graphs:/)
   assert.match(text, /- scan-report: Scan and report\./)
@@ -68,6 +71,7 @@ test('apply registers the compose tool and the prompt section', async () => {
     assert.ok(compose, 'the compose tool is registered')
     assert.match(compose.description, /4-8 phase nodes/)
     assert.match(compose.description, /immutable session spec/)
+    assert.match(compose.description, /fork/)
     assert.deepEqual(compose.parameters.required, ['action'])
 
     await ctx.tools.get('langgraph_run').execute({}, exec())

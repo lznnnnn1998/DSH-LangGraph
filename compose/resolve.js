@@ -8,6 +8,7 @@
  */
 
 import { LIMITS } from './constants.js'
+import { analyze } from './analysis.js'
 import { buildSpecGraph } from './build.js'
 import { isSpecId } from './specs.js'
 
@@ -79,6 +80,8 @@ export function createResolver({ registry, getStore, cache = new Map() }) {
     const entry = {
       id,
       composed: true,
+      spec,
+      analysis: analyze(spec),
       ...(typeof spec.name === 'string' ? { name: spec.name } : {}),
       ...(typeof spec.description === 'string' ? { description: spec.description } : {}),
       input: inputSchemaOf(spec),

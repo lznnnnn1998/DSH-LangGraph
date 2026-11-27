@@ -153,3 +153,139 @@ export interface GraphModule {
 
 /** Identity helper for a typed graph module. */
 export function defineGraph<T extends GraphModule>(module: T): T
+
+// --- composed graphs (`langgraph_compose`) -----------------------------------
+
+/** One declared state field. */
+export interface StateField {
+  type: 'string' | 'number' | 'boolean' | 'json' | 'string[]' | 'number[]'
+  /** Required; must match `type`. */
+  default: unknown
+  /** Defaults to `replace`; parallel writers need append/add/max/min/merge. */
+  reducer?: 'replace' | 'append' | 'add' | 'max' | 'min' | 'merge'
+}
+
+/** A state reference; `field` or `field.path` into a json field. */
+export interface StateRef {
+  $state: string
+}
+
+/** One prompt part: literal text or a state reference. */
+export type PromptPart = string | StateRef
+
+/** A node argument or set value: a JSON literal or a state reference. */
+export type SpecValue = unknown | StateRef
+
+/** How a node result is written to state. */
+export type Transform = 'text' | 'lines' | 'json' | 'bool' | 'number' | 'first' | 'count'
+
+/** A guard operator. */
+export type GuardOp = 'eq' | 'ne' | 'in' | 'gt' | 'gte' | 'lt' | 'lte' | 'exists' | 'and' | 'or' | 'not'
+
+/** A guard operand: a JSON literal or a state reference. */
+export type GuardOperand = unknown | StateRef
+
+/** A structured edge guard; `and`, `or`, and `not` nest guards. */
+export type Guard = true | false | { op: GuardOp; args: Array<Guard | GuardOperand> }
+
+/** One known atomic DSH tool action. */
+export interface ComposeToolNode {
+  id: string
+  do: 'tool'
+  tool: string
+  args: Record<string, SpecValue>
+  out: Record<string, Transform>
+}
+
+/** One model judgment. */
+export interface ComposeModelNode {
+  id: string
+  do: 'model'
+  prompt: PromptPart[]
+  system?: string
+  schema?: Record<string, unknown>
+  out: Record<string, Transform>
+}
+
+/** Open work: a prose brief plus tools, run by LangGraph's prebuilt ReAct agent. */
+export interface ComposeAgentNode {
+  id: string
+  do: 'agent'
+  prompt: PromptPart[]
+  tools: string[]
+  out: Record<string, Transform>
+}
+
+/** A human decision through LangGraph `interrupt()`. */
+export interface ComposeGateNode {
+  id: string
+  do: 'gate'
+  question: string
+  options?: string[]
+  out: Record<string, Transform>
+}
+
+/** A DSH child session. */
+export interface ComposeSubagentNode {
+  id: string
+  do: 'subagent'
+  prompt: PromptPart[]
+  schema?: Record<string, unknown>
+  out: Record<string, Transform>
+}
+
+/** A map body; its `id` is optional and ignored. */
+export type ComposeMapBody =
+  | (Omit<ComposeToolNode, 'id'> & { id?: string })
+  | (Omit<ComposeModelNode, 'id'> & { id?: string })
+  | (Omit<ComposeAgentNode, 'id'> & { id?: string })
+  | (Omit<ComposeSubagentNode, 'id'> & { id?: string })
+
+/** Dynamic fan-out over a string[] or number[] field. */
+export interface ComposeMapNode {
+  id: string
+  do: 'map'
+  over: string
+  body: ComposeMapBody
+  maxItems?: number
+  maxConcurrency?: number
+}
+
+/** A literal state update. */
+export interface ComposeSetNode {
+  id: string
+  do: 'set'
+  values: Record<string, SpecValue>
+}
+
+/** Any node the compiler accepts. */
+export type ComposeNode =
+  | ComposeToolNode
+  | ComposeModelNode
+  | ComposeAgentNode
+  | ComposeGateNode
+  | ComposeMapNode
+  | ComposeSetNode
+  | ComposeSubagentNode
+
+/** One edge. `from` is a node id or `START`; `to` is a node id or `END`. */
+export interface ComposeEdge {
+  from: string
+  to: string
+  when?: Guard
+}
+
+/** The strict JSON IR accepted by `langgraph_compose`. */
+export interface GraphSpec {
+  ir: 1
+  name?: string
+  description?: string
+  state: Record<string, StateField>
+  nodes: ComposeNode[]
+  edges: ComposeEdge[]
+  output?: string[]
+  maxSteps?: number
+}
+
+/** Actions accepted by `langgraph_compose`. */
+export type ComposeAction = 'describe' | 'validate' | 'compose' | 'list' | 'get' | 'delete' | 'fork'

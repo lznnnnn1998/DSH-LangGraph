@@ -26,6 +26,7 @@ import { openCheckpointStore } from './dsh-checkpointer.js'
 import { openDshStore } from './dsh-store.js'
 import { createTracer } from './dsh-trace.js'
 import { langchainTool } from './dsh-tools.js'
+import { downstreamOf, upstreamOf } from './compose/analysis.js'
 import { createResolver } from './compose/resolve.js'
 import { createMemorySpecStore, isSpecId, openSpecStore } from './compose/specs.js'
 import { COMPOSE_ACTIONS, createComposeTool } from './compose/tool.js'
@@ -118,6 +119,37 @@ function withoutInterrupts(state) {
   return rest
 }
 
+/** The innermost error our node wrapper annotated, or the outer error. */
+function annotatedError(error) {
+  let current = error
+  for (let depth = 0; current !== null && current !== undefined && depth < 10; depth += 1) {
+    if (current.nodeId !== undefined) return current
+    current = current.cause
+  }
+  return error
+}
+
+/** Bound one failure snapshot's state by the spec's output fields and length. */
+function boundedValues(values, output) {
+  if (values === null || typeof values !== 'object') return values
+  const picked = Array.isArray(output)
+    ? Object.fromEntries(output
+      .filter(field => Object.prototype.hasOwnProperty.call(values, field))
+      .map(field => [field, values[field]]))
+    : values
+  const safe = toJsonSafe(withoutInterrupts(picked))
+  let text
+  try {
+    text = JSON.stringify(safe)
+  } catch {
+    text = String(safe)
+  }
+  if (typeof text === 'string' && text.length > 4000) {
+    return { truncated: true, preview: text.slice(0, 4000) }
+  }
+  return safe
+}
+
 /** One-line rendering of a graph's input schema for the agent-facing listing. */
 function describeInput(entry) {
   if (entry.input === undefined) return undefined
@@ -153,6 +185,11 @@ export function renderGraphPrompt(registry, ready) {
       + 'by composing a new spec. It does not appear in the registered list: call '
       + '`langgraph_compose({ action: "list" })` or `langgraph_run` with no graph. Use ordinary DSH tools '
       + 'for one-off or still-unclear work; a shape worth reusing belongs in a profile graph module.',
+    'When a composed run fails, read the `status: "failed"` result: `failedScc`, `upstream`, '
+      + '`downstream`, `pending`, and `lastSupersteps` name the boundary and the state. Retry a transient '
+      + 'error with the same thread; fix a bad state with `langgraph_threads edit` and replay; for a graph '
+      + 'bug, call `langgraph_compose({ action: "fork", graph, from: failedNode })`, edit the returned '
+      + 'spec, compose it, and run it with the current state.',
   ]
   const threadGuidance = 'A LangGraph thread is a durable checkpoint chain for one graph run, not a DSH Session. '
     + 'Use `langgraph_threads` to list, inspect, time-travel, or delete threads, or read a graph\'s topology.'
@@ -858,9 +895,30 @@ export function apply(ctx, config) {
     }
   }
 
+  /** Read a composed thread's head state for a fork. */
+  async function readComposedState(id, thread, sessionId) {
+    const entry = await resolveEntry(id, sessionId)
+    if (entry === undefined || entry.composed !== true) {
+      throw new Error(`no composed graph "${id}" in this session`)
+    }
+    const { saver, store: checkpointStore } = await ensureSaver()
+    const conflict = threadConflict(checkpointStore, thread, sessionId, id)
+    if (conflict !== undefined) throw new Error(conflict)
+    const { store: graphStore } = await ensureGraphStore()
+    const helpers = createHelpers(undefined, undefined, graphStore)
+    const compiled = await compile(entry, saver, helpers, graphStore)
+    if (typeof compiled.getState !== 'function') return undefined
+    if (typeof compiled.checkpointer?.getTuple === 'function') {
+      const tuple = await compiled.checkpointer.getTuple({ configurable: { thread_id: thread } }).catch(() => undefined)
+      if (tuple === undefined) throw new Error(`thread "${thread}" has no state for graph "${id}"`)
+    }
+    const snapshot = await compiled.getState({ configurable: { thread_id: thread } })
+    return toJsonSafe(withoutInterrupts(snapshot?.values ?? {}))
+  }
+
   // --- compose tool ------------------------------------------------------------
   // Composed specs share the runtime with registered graphs; this tool only
-  // validates, stores, and previews them. `langgraph_run` executes the id.
+  // validates, stores, previews, and forks them. `langgraph_run` executes the id.
   const composeGraph = createComposeTool({
     ensureSpecStore,
     ensureSaver,
@@ -869,6 +927,7 @@ export function apply(ctx, config) {
     getVisibleTools: exec => ctx.tools.definitions(exec?.agent).map(definition => definition.name),
     getSessionId: exec => exec?.agent?.id,
     getCwd: exec => exec?.agent?.cwd ?? exec?.cwd,
+    readStateOf: readComposedState,
   })
 
   /** Bound one background job's model-facing result text. */
@@ -883,12 +942,124 @@ export function apply(ctx, config) {
   }
 
   /**
+   * Build the structured failure result: the failed node's cycle, what was
+   * pending, the dependency boundary, and the last few checkpoint snapshots.
+   * For a composed graph the SCC/reachability sets come from its IR analysis;
+   * a registered graph gets the error and thread history only.
+   */
+  async function failureResult({ id, entry, compiled, config, thread, checkpointed, error }) {
+    const annotated = annotatedError(error)
+    let failedNode = typeof annotated?.nodeId === 'string' ? annotated.nodeId : undefined
+    const itemIndex = Number.isInteger(annotated?.itemIndex) ? annotated.itemIndex : undefined
+
+    // Hidden map nodes (`<id>__fanout`, `<id>__join`) are compiler details;
+    // report the spec's map id instead.
+    const displayNode = node => {
+      if (typeof node !== 'string') return node
+      for (const mapNode of entry?.spec?.nodes ?? []) {
+        if (mapNode.do !== 'map') continue
+        if (node === `${mapNode.id}__fanout` || node.startsWith(`${mapNode.id}__fanout_`)) return mapNode.id
+        if (node === `${mapNode.id}__join` || node.startsWith(`${mapNode.id}__join_`)) return mapNode.id
+      }
+      return node
+    }
+
+    const lastSupersteps = []
+    let checkpoint
+    let pending = []
+    let state
+    if (thread !== undefined && typeof compiled.getStateHistory === 'function') {
+      try {
+        for await (const snapshot of compiled.getStateHistory({ configurable: { thread_id: thread } })) {
+          lastSupersteps.push({
+            step: snapshot.metadata?.step,
+            source: snapshot.metadata?.source,
+            checkpoint: snapshot.config?.configurable?.checkpoint_id,
+            next: toJsonSafe(snapshot.next ?? []).map(displayNode),
+            tasks: (snapshot.tasks ?? []).map(task => ({
+              id: displayNode(task.name ?? task.id ?? 'unknown'),
+              error: task.error === undefined || task.error === null
+                ? null
+                : { name: task.error.name ?? 'Error', message: task.error.message ?? String(task.error) },
+            })),
+            values: boundedValues(snapshot.values ?? {}, entry?.output),
+          })
+          if (lastSupersteps.length >= 3) break
+        }
+      } catch {
+        // History is best-effort; the failure is still reportable without it.
+      }
+      checkpoint = lastSupersteps[0]?.checkpoint
+      const next = lastSupersteps[0]?.next
+      if (Array.isArray(next) && next.length > 0) {
+        pending = [...new Set(next)]
+      }
+      state = lastSupersteps[0]?.values
+    }
+
+    // A registered graph module has no IR wrapper to annotate its node, but
+    // the boundary checkpoint names the task that held the error.
+    const failedTask = lastSupersteps[0]?.tasks.find(task => task.error !== null)
+    if (failedNode === undefined && failedTask !== undefined) failedNode = failedTask.id
+    if (failedNode === undefined && entry?.analysis !== undefined) {
+      // A choice with no matching guard throws from the path function, outside
+      // the node wrapper. The message still names the source node.
+      const message = typeof annotated?.message === 'string' ? annotated.message : String(error)
+      const match = /no outgoing edge matched at node "([^"]+)"/.exec(message)
+      if (match !== null && entry.analysis.nodes.has(match[1])) failedNode = match[1]
+    }
+    if (pending.length === 0 && failedNode !== undefined) pending = [failedNode]
+
+    const analysis = entry?.analysis
+    let failedScc = []
+    if (analysis !== undefined && failedNode !== undefined && analysis.sccOf.has(failedNode)) {
+      failedScc = [...analysis.sccs[analysis.sccOf.get(failedNode)]]
+    }
+    const upstream = analysis !== undefined && failedNode !== undefined
+      ? upstreamOf(analysis, [failedNode]).filter(node => node !== failedNode && !failedScc.includes(node))
+      : undefined
+    const downstream = analysis !== undefined && failedNode !== undefined
+      ? downstreamOf(analysis, failedScc.length > 0 ? failedScc : [failedNode])
+      : undefined
+
+    const annotatedNode = annotated !== null && annotated !== undefined && annotated.nodeId !== undefined
+    const errorInfo = {
+      name: annotatedNode
+        ? (typeof annotated.name === 'string' ? annotated.name : 'Error')
+        : (failedTask?.error?.name ?? (typeof annotated?.name === 'string' ? annotated.name : 'Error')),
+      message: annotatedNode
+        ? (typeof annotated.message === 'string' ? annotated.message : String(annotated))
+        : (failedTask?.error?.message ?? (typeof annotated?.message === 'string' ? annotated.message : String(error))),
+      ...(failedNode === undefined ? {} : { node: failedNode }),
+      ...(itemIndex === undefined ? {} : { itemIndex }),
+    }
+    return {
+      status: 'failed',
+      graph: id,
+      durable: checkpointed,
+      ...(thread === undefined ? {} : { thread }),
+      ...(checkpoint === undefined ? {} : { checkpoint }),
+      ...(failedNode === undefined ? {} : { failedNode }),
+      ...(failedScc.length === 0 ? {} : { failedScc }),
+      pending,
+      ...(downstream === undefined ? {} : { downstream }),
+      ...(upstream === undefined ? {} : { upstream }),
+      lastSupersteps,
+      error: errorInfo,
+      ...(state === undefined ? {} : { state }),
+      hint: entry?.composed === true
+        ? 'transient -> resume with the same thread; state -> edit/replay; graph -> fork the downstream and compose'
+        : 'transient -> resume with the same thread; state -> edit/replay',
+    }
+  }
+
+  /**
    * Execute one prepared graph run under its thread lock. Shared by the
    * foreground tool path and a background job.
    * @param {object} run - prepared run facts.
    * @returns {Promise<object>} the model-facing run result.
    */
-  async function executeRun({ id, compiled, store, thread, requestedThread, checkpointed, args, tracer, signal, sessionId, maxSteps, maxConcurrency }) {
+  async function executeRun({ id, entry, compiled, store, thread, requestedThread, checkpointed, args, tracer, signal, sessionId, maxSteps, maxConcurrency }) {
     return await withThreadLock(thread, async () => {
       if (thread !== undefined) {
         const owner = { graph: id, ...(sessionId === undefined ? {} : { sessionId }) }
@@ -965,9 +1136,28 @@ export function apply(ctx, config) {
         mode = 'input'
       }
 
-      const output = await compiled.invoke(input, { ...config, callbacks: tracer.callbacks })
+      const startedAt = Date.now()
+      let output
+      try {
+        output = await compiled.invoke(input, { ...config, callbacks: tracer.callbacks })
+      } catch (error) {
+        // A cancelled run is not a graph failure; cancellation is handled by
+        // the caller or by the background job's cancel path.
+        if (signal?.aborted || error?.name === 'AbortError') throw error
+        return await failureResult({ id, entry, compiled, config, thread, checkpointed, error })
+      }
       const interrupts = output?.__interrupt__
       const state = toJsonSafe(withoutInterrupts(output))
+      let steps
+      if (typeof compiled.getState === 'function') {
+        try {
+          const snapshot = await compiled.getState(config)
+          if (Number.isInteger(snapshot?.metadata?.step)) steps = snapshot.metadata.step
+        } catch {
+          // A non-checkpointed graph has no persisted step count.
+        }
+      }
+      const report = { durationMs: Date.now() - startedAt, ...(steps === undefined ? {} : { steps }) }
       const head = {
         graph: id,
         mode,
@@ -982,9 +1172,10 @@ export function apply(ctx, config) {
           interrupts: toJsonSafe(interrupts),
           hint: 'Answer with `langgraph_run({ graph, thread, resume: <value> })`.',
           state,
+          report,
         }
       }
-      return { ...head, status: 'completed', state }
+      return { ...head, status: 'completed', state, report }
     })
   }
 
@@ -1030,6 +1221,7 @@ export function apply(ctx, config) {
             }
             const result = await executeRun({
               id,
+              entry,
               compiled,
               store,
               thread: checkpointed ? thread : undefined,
@@ -1042,6 +1234,14 @@ export function apply(ctx, config) {
               maxSteps: entry.maxSteps,
               maxConcurrency: entry.maxConcurrency,
             })
+            if (result?.status === 'failed') {
+              job.updateProgress('failed')
+              return {
+                status: 'failed',
+                detail: result.error?.message ?? 'the graph run failed',
+                result: renderJobResult(result),
+              }
+            }
             if (result?.error !== undefined) return { status: 'failed', detail: result.error }
             job.updateProgress(result.status === 'interrupted' ? 'interrupted' : 'completed')
             return {
@@ -1114,6 +1314,7 @@ export function apply(ctx, config) {
     if (conflict !== undefined) return { error: conflict }
     return await executeRun({
       id,
+      entry,
       compiled,
       store: checkpointStore,
       thread,
@@ -1385,10 +1586,11 @@ export function apply(ctx, config) {
     name: COMPOSE_TOOL,
     description: 'Compose a session-owned LangGraph graph from a strict JSON GraphSpec, then run it with '
       + '`langgraph_run`. Actions: `describe` (the IR manual and a minimal example), `validate`, '
-      + '`compose`, `list`, `get`, `delete`. Call `describe` before the first compose. Coarse-first: '
-      + '4-8 phase nodes; use `agent` for open work, `model` for one judgment, `gate` for a human '
-      + 'decision, and `tool` for a known atomic action. A composed graph is an immutable session spec, '
-      + 'not a file and not a DSH Session.',
+      + '`compose`, `list`, `get`, `delete`, `fork`. Call `describe` before the first compose. '
+      + 'Coarse-first: 4-8 phase nodes; use `agent` for open work, `model` for one judgment, `gate` for '
+      + 'a human decision, and `tool` for a known atomic action. A composed graph is an immutable session '
+      + 'spec, not a file and not a DSH Session. After a failure, `fork` from the failed node returns an '
+      + 'editable downstream spec.',
     parameters: {
       type: 'object',
       properties: {
@@ -1408,7 +1610,15 @@ export function apply(ctx, config) {
         },
         graph: {
           type: 'string',
-          description: 'Composed graph id (lg_adhoc_...); required by get and delete.',
+          description: 'Composed graph id (lg_adhoc_...); required by get, delete, and fork.',
+        },
+        from: {
+          type: 'string',
+          description: 'Fork: the node to rewrite from, usually the failure result\'s `failedNode`.',
+        },
+        thread: {
+          type: 'string',
+          description: 'Fork: the thread whose head state becomes the new graph\'s input.',
         },
         limit: {
           type: 'integer',

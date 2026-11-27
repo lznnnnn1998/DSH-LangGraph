@@ -38,7 +38,7 @@ test('registers the graph guidance before subagents, not in the workflow band', 
   assert.ok(compose, 'the compose tool is registered')
   assert.match(compose.description, /4-8 phase nodes/)
   assert.match(compose.description, /immutable session spec/)
-  assert.deepEqual(compose.parameters.properties.action.enum, ['describe', 'validate', 'compose', 'list', 'get', 'delete'])
+  assert.deepEqual(compose.parameters.properties.action.enum, ['describe', 'validate', 'compose', 'list', 'get', 'delete', 'fork'])
   ctx.dispose()
 })
 

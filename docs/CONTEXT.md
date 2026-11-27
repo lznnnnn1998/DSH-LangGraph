@@ -1,6 +1,6 @@
 # Context and prompt design
 
-This plugin adds one vocabulary and two tools to a DSH profile. This page records
+This plugin adds one vocabulary and three tools to a DSH profile. This page records
 exactly what it injects, what it deliberately does not inject, and how that layer stays
 distinct from DSH's own prompt and tools.
 
@@ -8,7 +8,7 @@ distinct from DSH's own prompt and tools.
 
 | Layer | Contribution | Lifetime |
 |---|---|---|
-| Tool schemas | `langgraph_run`, `langgraph_threads` | While the plugin is loaded; `config.prompt: false` does not remove them. |
+| Tool schemas | `langgraph_run`, `langgraph_threads`, `langgraph_compose` | While the plugin is loaded; `config.prompt: false` does not remove them. |
 | System-prompt section | `tool:langgraph`, order `TOOL_SUBAGENT - 10` | Effect-owned by the plugin; `config.prompt: false` disables it. |
 | Runtime context | **none** | — |
 | Session events | none from the model's point of view | Traces are log-only DSH PTC events for Trajectory. |
@@ -35,7 +35,9 @@ use it because:
 
 | Term | Meaning in this plugin | Not |
 |---|---|---|
-| **graph** | A module registered with the profile (`id`, `description`, `input`, `build`). | The `workflow` tool's ad-hoc JavaScript script. |
+| **graph** | A module registered with the profile (`id`, `description`, `input`, `build`), or a session-owned composed spec; both run with `langgraph_run`. | The `workflow` tool's ad-hoc JavaScript script. |
+| **composed graph** | An immutable `GraphSpec` stored in `langgraph_specs`, compiled by the plugin, with an id `lg_adhoc_<hash>`. | A `graphs/*.js` module, a file, or a DSH Session. |
+| **spec** | One stored IR record; editing means composing a new spec. | A mutable document or a running graph. |
 | **graph run** | One execution with an input, returning a state. | A DSH turn or Session. |
 | **thread** | A durable LangGraph checkpoint chain for one graph run, owned by the session and graph that created it. | A DSH Session. |
 | **checkpoint** | One snapshot in a thread; `history`, `edit`, and replay address it by id. | A DSH session checkpoint. |
@@ -60,6 +62,12 @@ graph with `bash`, `subagent`, or ad-hoc steps. This keeps graph
 use from becoming ceremony while still letting a matching graph win over a hand-rolled
 sequence.
 
+`langgraph_compose` has its own trigger: at least three dependent steps, a branch or
+retry, cross-turn persistence, fan-out plus aggregation, or a human gate. The section
+also states the coarse-first default (4–8 phase nodes; `agent` for open work, `model` for
+one judgment, `gate` for a human decision, `tool` for a known atomic action). One or two
+linear steps, or a single wrapped tool call, do not compose.
+
 The tool description covers mechanics (arguments, thread/resume/checkpoint, background
 job), not selection; the section covers selection, not mechanics. This split is the main
 rule for future edits.
@@ -72,22 +80,24 @@ boundaries and the available moves:
 - a graph that is already registered and whose output matches → `langgraph_run`;
 - a one-off task, or a task whose shape is still unclear → ordinary DSH tools;
 - an ad-hoc fan-out whose shape is generated for this run → `workflow`;
-- a shape worth reusing → a profile graph module (authored outside this tool).
+- a shape worth a durable, inspectable graph → `langgraph_compose` with a JSON spec;
+- a shape worth reusing across sessions → a profile graph module (authored outside this tool).
 
-`langgraph_run` cannot define a graph; the model is told not to invent an id. The only
-concrete list in the prompt is the registry itself — data the model must select from, not
-an example to copy. This is deliberate: the model should choose or compose the shape,
-not imitate a canned one.
+`langgraph_run` cannot define a graph; the model is told not to invent an id. A composed
+spec is not a file and not a DSH Session, and it is immutable: changing it means composing
+a new one. The only concrete list in the prompt is the registry itself — data the model
+must select from, not an example to copy. This is deliberate: the model should choose or
+compose the shape, not imitate a canned one.
 
 ## Boundaries with DSH's own context
 
 | DSH facility | Boundary |
 |---|---|
-| `workflow` tool | `workflow` writes an ad-hoc JavaScript fan-out script; `langgraph_run` runs a profile-registered, named graph with a durable thread. The section sits **after** the workflow tool's "only when the user asks" rule and **before** subagent guidance (`TOOL_SUBAGENT - 10`), so that rule cannot read as part of this section. |
-| `subagent` | One-off delegation stays `subagent`; a graph may delegate internally, and `helpers.subagent` creates a normal DSH child. |
-| `ask_user_question` | The native question tool is the default for one question; the `ask-user` graph only adds value when a graph or thread is wanted. |
+| `workflow` tool | `workflow` writes an ad-hoc JavaScript fan-out script; `langgraph_run` runs a named graph (registered or composed) with a durable thread. The section sits **after** the workflow tool's "only when the user asks" rule and **before** subagent guidance (`TOOL_SUBAGENT - 10`), so that rule cannot read as part of this section. |
+| `subagent` | One-off delegation stays `subagent`; a graph may use an `agent` node for open work in this session or a `subagent` node for a child Session. |
+| `ask_user_question` | The native question tool is the default for one question; a `gate` node is for a decision inside a durable graph. |
 | `job_output` / `job_kill` | A background graph run is a DSH job; use the stock job tools. |
-| DSH Session | A LangGraph thread is not a Session; the prompt and tool schema say so explicitly. |
+| DSH Session | A LangGraph thread is not a Session; a composed spec is not a Session either. The prompt and tool schemas say so explicitly. |
 | Trajectory | Graph activity appears as nested log-only sub-calls; it is not injected into model context. |
 | Goals, schedules | Out of scope; the plugin does not create either. |
 
@@ -98,20 +108,24 @@ not imitate a canned one.
   workflow tool's "ONLY when..." guidance and made the two "workflow" instructions read
   as one.
 - The section is global to the profile while the plugin is active, including agents whose
-  tool policy hides `langgraph_run`; `config.prompt: false` is the escape hatch.
+  tool policy hides the graph tools; `config.prompt: false` is the escape hatch.
 - Registry entries are sorted by id; broken modules are skipped from the list.
 
 ## Maintenance checklist
 
 When changing this layer:
 
-1. Keep the words **graph**, **thread**, **checkpoint**, and **DSH job** consistent in the
-   prompt, tool descriptions, error messages, UI, and docs.
+1. Keep the words **graph**, **composed graph**, **spec**, **thread**, **checkpoint**, and
+   **DSH job** consistent in the prompt, tool descriptions, error messages, UI, and docs.
 2. Do not use "workflow" as a synonym for a graph; it belongs only in the explicit
    distinction from the `workflow` tool.
 3. Add a trigger only if it is a property the plugin actually provides; do not advertise
    long-term memory unless a graph uses the store.
-4. Keep the section about selection and the tool descriptions about mechanics.
-5. Keep graph descriptions one line, unique, and specific about the graph's value; avoid
+4. Keep the section about selection and the tool descriptions about mechanics. Compose
+   mechanics live in `langgraph_compose` and its on-demand `describe`, not in the prompt.
+5. Keep the coarse-first guidance aligned with the lint: open work in `agent`, one
+   judgment in `model`, one human decision in `gate`, one known action in `tool`, and
+   no more than 4–8 phase nodes by default.
+6. Keep graph descriptions one line, unique, and specific about the graph's value; avoid
    demo overlap.
-6. Re-check section order when a DSH release adds or renames prompt sections.
+7. Re-check section order when a DSH release adds or renames prompt sections.

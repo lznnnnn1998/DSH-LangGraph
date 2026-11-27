@@ -12,7 +12,7 @@ wired and how to add an integration that is not bundled.
 | Expose DSH tools to LangGraph | `helpers.tools([...names])` | Real LangChain `tool()` instances; visible names only. |
 | One text completion | `helpers.callModel(prompt, options)` | Deployment model route; text only. |
 | A LangChain chat model | `helpers.chatModel(options)` | Supports `bindTools`; reports usage. |
-| Prebuilt ReAct agent | `helpers.createReactAgent(options)` | Wraps the DSH model and tools; returns an uncompiled graph. |
+| Prebuilt ReAct agent | `helpers.createReactAgent(options)` | Wraps the DSH model and tools; returns a compiled graph (LangGraph 1.7.5). |
 | Message classes | `helpers.messages` | `AIMessage`, `HumanMessage`, `SystemMessage`, `ToolMessage`. |
 | Durable checkpoints | `api.checkpointer` | The plugin compiles your graph with it by default. |
 | Long-term memory | `getStore(config)`, `api.store`, `helpers.store()` | `DshStore` over `langgraph_store`; filters/pagination, no vector search. |
@@ -107,12 +107,37 @@ const agent = await helpers.createReactAgent({
   llm: helpers.chatModel(),
   tools: helpers.tools(['read', 'glob', 'bash']),
 })
-return agent // a StateGraph; the plugin compiles it with its checkpointer and store
 ```
 
-Pass the uncompiled graph back. LangGraph only accepts LangChain Runnables as tools, so
-use `helpers.tools` rather than raw DSH tool names; the original DSH JSON schema is what
-the model sees.
+In LangGraph 1.7.5 this already returns a **compiled** graph. `compile(entry, ...)`
+detects that and does not inject the plugin's checkpointer or store, so returning it
+directly as the whole graph loses the durable thread. Use it inside a node (as the
+`ask-tools` example and the IR `agent` node do):
+
+```js
+return new StateGraph(State)
+  .addNode('react', async state => {
+    const result = await agent.invoke({ messages: [['human', state.question]] })
+    const last = result.messages.at(-1)
+    return { answer: typeof last.content === 'string' ? last.content : '' }
+  })
+  .addEdge(START, 'react')
+  .addEdge('react', END)
+```
+
+If you do use it as the graph itself, pass `checkpointer` and `store` explicitly to
+`createReactAgent`. LangGraph only accepts LangChain Runnables as tools, so use
+`helpers.tools` rather than raw DSH tool names; the original DSH JSON schema is what the
+model sees.
+
+## Composed graphs
+
+`langgraph_compose` is a declarative front end over the same runtime, not a second
+ecosystem. A composed node may be `tool`, `model`, `agent` (this same prebuilt ReAct
+agent), `gate`, `map`, `set`, or `subagent`; it cannot import a package or construct a
+custom retriever. When a shape needs an arbitrary LangChain package, a vector store, or
+custom streaming, write a graph module, or keep that work inside an `agent` node. A
+composed spec is never written into `graphs/*.js` and never loads code.
 
 ## Streaming
 

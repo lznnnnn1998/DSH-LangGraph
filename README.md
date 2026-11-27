@@ -1,10 +1,10 @@
 # dsh-langgraph
 
-A DSH bundle that registers LangGraph graphs and exposes them to the agent as the
-`langgraph_run` and `langgraph_threads` tools. Graph nodes call the session's own DSH
-tools through `helpers.callTool`; threads are checkpointed in a DSH storage domain, so a
-run survives the turn — and the Host process — and an `interrupt()`ed graph resumes
-where it stopped.
+A DSH bundle that registers LangGraph graphs, composes session-owned ones at runtime, and
+exposes them to the agent as the `langgraph_run`, `langgraph_threads`, and
+`langgraph_compose` tools. Graph nodes call the session's own DSH tools through
+`helpers.callTool`; threads are checkpointed in a DSH storage domain, so a run survives
+the turn — and the Host process — and an `interrupt()`ed graph resumes where it stopped.
 
 - `langgraph_run` (`graph`, `input`, `thread`, `resume`, `maxSteps`, `run_in_background`;
   omit `graph` to list). A background run returns a DSH job id; read it with `job_output`
@@ -13,7 +13,13 @@ where it stopped.
   `history` lists checkpoints, `state` reads one by `checkpoint`, and `edit` forks a
   checkpoint with new values. Replay the fork with `langgraph_run({ graph, thread, checkpoint })`.
   `topology` returns a graph's JSON-safe nodes and edges for a client view.
+- `langgraph_compose` (`action`: `describe` | `validate` | `compose` | `list` | `get` | `delete` | `fork`).
+  A composed graph is a strict JSON `GraphSpec` stored as an immutable, session-owned
+  spec (`lg_adhoc_...`); `langgraph_run` runs it with the same threads, interrupts,
+  background jobs, traces, and time travel. `fork` returns an editable downstream spec
+  after a failure. See [docs/COMPOSE.md](docs/COMPOSE.md).
 - Registry: `graphs/*.js` (and `graphs/*.ts` on Node 24.22+) in this package plus `config.graphs`.
+  Composed specs are a separate, session-owned source and do not enter the profile registry.
 - Node helpers: `helpers.callTool(name, args)` for DSH tools, `helpers.askUser(questions)`
   for a question in DSH's native question UI, `helpers.subagent(prompt, options)` for a
   caller-delivered DSH child agent, `helpers.callModel(prompt, options)` for this
@@ -28,8 +34,10 @@ where it stopped.
   it falls back to `InMemoryStore`; `config.store: false` passes no store at all.
 - **Model-facing guidance:** while loaded, a system-prompt section lists the registered
   graph ids and descriptions, distinguishes `langgraph_run` from the `workflow` tool, and
-  tells the model to use a matching graph rather than reimplement it. `config.prompt: false`
-  disables it.
+  tells the model to use a matching graph rather than reimplement it. It also teaches
+  when to compose, the coarse-first default (4–8 phase nodes; `agent` for open work,
+  `model` for one judgment, `gate` for a human decision, `tool` for a known atomic
+  action), and how to recover from a failed run. `config.prompt: false` disables it.
 - **Trajectory trace:** each run shows up as one `langgraph_run` row; its graph nodes, DSH
   tool calls, and model calls appear as nested sub-calls in **Trajectory** — `langgraph:node`,
   `langgraph:tool`, `langgraph:model`, `langgraph:subagent`. The trace uses DSH's log-only
@@ -45,6 +53,8 @@ where it stopped.
   (nodes, edges, conditional branches). It reads two owner-only `/api/plugins/langgraph/*`
   routes; `config.ui: false` registers neither. Token-level streaming is not part of this
   panel; runs stay visible in Trajectory.
+- See `docs/COMPOSE.md` for the JSON IR, the compose tool, map/fan-out semantics,
+  structured failures, recovery, fork, and limits.
 - See `docs/DETAIL.md` for the graph module contract, trace mapping, thread semantics, and limits.
 - See `docs/CONTEXT.md` for what is injected into the model context, the vocabulary, and
   how it stays distinct from DSH's `workflow`, `subagent`, and question tools.

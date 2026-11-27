@@ -5,7 +5,8 @@ replacement.** All work is a plugin change on this checkout.
 
 Current release:
 - GitHub `main` = `8435a47`; tag `v1.0.1`; npm = `@lzn1998/dsh-langgraph@1.0.1`
-- 53 tests pass; typecheck green
+- Runtime composition (`1.1.0`–`1.5.0`) is local only: not pushed, tagged, or published.
+- 159 tests pass; TypeScript is not installed in this checkout, so `tsc` was not run
 - `0.6.0`–`1.0.1` are commits on `main`; `v1.0.1` tags the release
 - `0.6.0` system-prompt graph list is committed in `537292d` (21 tests pass)
 - this plan is committed in `d8ab90e`
@@ -139,6 +140,44 @@ explicit request or at the end of the batch.
   `langgraph_threads history`; workflow fan-out → `workflow`; ambiguous release shape →
   no graph, ordinary tools.
 - 53 tests; typecheck green. Release: pushed `main`, tagged `v1.0.1`, published.
+
+## 1.1.0 — graph spec compiler core (DONE)
+- `compose/`: constants, strict validation with exact IR paths, structured guards,
+  templates/transforms, Tarjan SCC + reachability + writer/reducer analysis, node
+  executors for `tool`/`model`/`agent`/`gate`/`set`, and `buildSpecGraph` for sequence,
+  choice, static fan-out, and join.
+- 36 tests; v1 conformance specs `scan-report`, `approval-gate`, `ask-tools`, `parallel`.
+- Commit `5e12fca`; plan committed in `7a2e745`.
+
+## 1.2.0 — spec store and resolve (DONE)
+- `langgraph_specs`: content-addressed ids, owner checks, idempotent saves, 64/session
+  cap, memory fallback, close-on-dispose.
+- `resolveEntry` per owner; `langgraph_run`, `langgraph_threads`, and the topology route
+  accept `lg_adhoc_` ids; a spec's `maxSteps` bounds the run.
+- 12 tests; commit `80d2ab9`.
+
+## 1.3.0 — compose tool and run (DONE)
+- `langgraph_compose`: `describe`/`validate`/`compose`/`list`/`get`/`delete`, workspace
+  `.json` path confined to the session cwd, tool-visibility checks.
+- Prompt gained compose/coarse-first guidance; over-decomposition lint; no-arg
+  `langgraph_run` lists composed graphs; interrupt/resume/history/edit/replay/background
+  work on composed ids.
+- 24 tests; commit `7aff06a`.
+
+## 1.4.0 — map and subagent (DONE)
+- `map` over `string[]`/`number[]` via `Send` with hidden fanout/body/join, `item`/`index`,
+  `maxItems`, `maxConcurrency`, empty-array sentinel, and input-order `append`.
+- `subagent` nodes; map-report/ask-workspace/ask-subagent/ask-user conformance specs.
+- 18 tests; commit `203f10c`.
+
+## 1.5.0 — failure, recovery, and docs (DONE, release pending)
+- Structured failure result: failed node/SCC, upstream/downstream, pending, last three
+  bounded supersteps, error with `itemIndex`, state, recovery hint; background jobs carry
+  it too. Success results carry a small run report.
+- resume/edit/replay, `fork` downstream or SCC + re-compose, cycle recovery, GraphSpec
+  types, `docs/COMPOSE.md`, README/DETAIL/ECOSYSTEM/CONTEXT updates.
+- 159 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
+  the user's explicit go-ahead.
 
 ## 0.14.0 — sandboxed graph worker (DEFERRED — not a small version)
 Checked against DSH 0.2.2-rc.5/0.2.3-alpha.2:

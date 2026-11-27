@@ -9,6 +9,10 @@ Run a LangGraph graph from inside a DSH agent session, and continue it later.
 - `langgraph_threads` — `list`, `state`, `history`, `edit`, `topology`, and `delete`.
   A checkpoint can be inspected, forked with new values, and replayed; a graph's nodes
   and edges are available as JSON for a client view.
+- `langgraph_compose` — compose a session-owned graph from a strict JSON `GraphSpec`,
+  validate/list/get/delete it, and `fork` an editable downstream spec after a failure.
+  A composed graph uses the same compile, run, checkpoint, trace, background, and
+  time-travel path; see [COMPOSE.md](COMPOSE.md) for the IR reference.
 - **Durable threads.** Every superstep is checkpointed in a DSH storage domain
   (`langgraph_checkpoints`), so a thread survives the turn and the Host process. Pass
   `thread` back to continue it; a profile without `storageDomain` falls back to an
@@ -44,6 +48,46 @@ Run a LangGraph graph from inside a DSH agent session, and continue it later.
   and `helpers.createReactAgent({...})` is LangGraph's prebuilt ReAct agent wired to both.
   `helpers.messages` re-exports the LangChain message classes.
 
+## Composed graphs (GraphSpec)
+
+The runtime has one execution path. A composed graph is another **entry**: a stored spec
+resolves to `{ id, description, input, build }`, where `build(api)` calls the plugin's
+deterministic JSON-to-`StateGraph` compiler. It then uses the same `compile`, `executeRun`,
+checkpointer, store, helpers, trace, background job, and thread ownership as a registered
+module.
+
+- **IR.** `ir: 1`, state fields with types and reducers, and nodes `tool`, `model`,
+  `agent`, `gate`, `map`, `set`, `subagent`. `out` transforms convert a result into a
+  typed state value; guards are structured (`eq`, `in`, `gt`, …) and never `eval`.
+  Edges are sequence (one unconditional), choice (conditional in order), or static
+  fan-out (two or more unconditional). A node with multiple incoming edges joins.
+- **Compiler.** `compose/schema.js` validates with exact IR paths and budgets,
+  `compose/analysis.js` computes Tarjan SCCs, reachability, and the writer/reducer
+  contract, `compose/build.js` emits the `StateGraph`, and `compose/nodes.js` executes
+  one node. The compiler calls no model and performs no I/O.
+- **Specs.** `langgraph_specs` stores one immutable record per content id
+  (`lg_adhoc_<24 hex>`), capped at 64 per session and owned by the composing session.
+  Without a storage domain the store is process-local. `compose/resolve.js` turns a spec
+  id into a runtime entry and caches it per owner.
+- **Map.** A map compiles to a hidden fanout dispatcher, a body node (the spec's id), and
+  a hidden join. `Send` runs the body once per item; the join runs once with the
+  aggregated state and then follows the spec's out-edges. `append` follows the Send/input
+  order, not completion order. An empty array uses a sentinel item so the join still
+  runs. The body may be `tool`, `model`, `agent`, or `subagent`; its `out` fields need
+  mergeable reducers.
+- **Failure.** A failed run returns `status: "failed"` with `failedNode` (and
+  `itemIndex` for a map item), `failedScc`, `upstream`, `downstream`, `pending`, the last
+  three checkpoint snapshots with bounded values, the error, and a state copy bounded by
+  `output`. A registered graph gets the error and history without the IR dependency sets.
+  Background jobs carry the same structure.
+- **Recovery.** Resume the same thread for a transient error; `edit` the failure
+  checkpoint and replay for a bad state; `fork` the downstream (or the whole SCC) into a
+  new editable spec for a graph bug. The runtime never mutates a spec.
+- **Compose tool.** `describe` is an on-demand IR manual; `validate` stores nothing;
+  `compose` previews and stores; `list`, `get`, and `delete` are owner-scoped; `fork`
+  returns the downstream skeleton and the thread's current state. A workspace `.json`
+  path is read only inside the session cwd.
+
 ## Model-facing guidance
 
 While the plugin is active it registers a system-prompt section through DSH's public
@@ -53,7 +97,9 @@ a description match, or a graph-specific need such as a durable thread, backgrou
 interrupt/resume, checkpoint replay, or Trajectory sub-calls), and the registry (up to 24
 ids and descriptions; input schemas stay out of the prompt). The model therefore knows
 what exists without spending a discovery call; `langgraph_run` with no `graph` still
-returns the full list and input schemas.
+returns the full list and input schemas. The section also states when to compose, the
+coarse-first default (4–8 phase nodes), that a composed graph is immutable and session-
+owned, and how to read a failed run and fork its downstream.
 
 - The section sits just before the subagent guidance, after the `workflow` tool's
   "only when the user asks" rule. An earlier placement at `TOOL_WORKFLOW` made the two

@@ -135,10 +135,11 @@ test('a composed spec carries its maxSteps into the run budget', async () => {
   const ctx = createContext(storage)
   apply(ctx, { prompt: false, ui: false })
   try {
-    await assert.rejects(
-      ctx.tools.get('langgraph_run').execute({ graph: id }, exec('session-1')),
-      /Recursion limit of 3/,
-    )
+    const failed = await ctx.tools.get('langgraph_run').execute({ graph: id }, exec('session-1'))
+    assert.equal(failed.status, 'failed')
+    assert.match(failed.error.message, /Recursion limit of 3/)
+    assert.equal(failed.failedNode, undefined)
+    assert.ok(failed.thread)
   } finally {
     ctx.dispose()
   }

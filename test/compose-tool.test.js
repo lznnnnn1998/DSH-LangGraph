@@ -42,7 +42,10 @@ test('describes the IR without touching storage', async () => {
   assert.ok(result.example)
   assert.ok(result.nodes.tool)
   assert.ok(result.nodes.agent)
+  assert.ok(result.nodes.map)
+  assert.ok(result.nodes.subagent)
   assert.ok(result.guidance.some(line => /4-8/.test(line)))
+  assert.ok(result.guidance.some(line => /fork/.test(line)))
   ctx.dispose()
 })
 
@@ -180,7 +183,7 @@ test('deleting refuses while threads exist and can delete them explicitly', asyn
 
 test('rejects unknown actions and missing graph ids', async () => {
   const { ctx, compose } = setup()
-  assert.match((await compose.execute({ action: 'fork' }, exec())).error, /unknown action/)
+  assert.match((await compose.execute({ action: 'explode' }, exec())).error, /unknown action/)
   assert.match((await compose.execute({ action: 'get' }, exec())).error, /`graph` is required/)
   assert.match((await compose.execute({ action: 'delete' }, exec())).error, /`graph` is required/)
   const missing = await compose.execute({ action: 'get', graph: 'lg_adhoc_missing' }, exec())

@@ -68,10 +68,10 @@ test('askUser keeps custom text and reports a skipped question', async () => {
 test('askUser rejects a question without text before calling the tool', async () => {
   const { ctx, run } = setup()
   const calls = answerWith(ctx, [])
-  await assert.rejects(
-    run.execute({ graph: 'ask-user', input: { question: '' } }, exec()),
-    /non-empty `question`/,
-  )
+  const failed = await run.execute({ graph: 'ask-user', input: { question: '' } }, exec())
+  assert.equal(failed.status, 'failed')
+  assert.match(failed.error.message, /non-empty `question`/)
+  assert.equal(failed.failedNode, 'ask')
   assert.equal(calls.length, 0)
   ctx.dispose()
 })
