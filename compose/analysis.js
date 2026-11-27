@@ -8,7 +8,7 @@
  */
 
 import { END, START } from './constants.js'
-import { isPlainObject } from './template.js'
+import { hasStateKey, isPlainObject } from './template.js'
 
 /** Group edges by source, keeping the spec's edge order. */
 function groupBySource(spec) {
@@ -271,6 +271,80 @@ export function lintWarnings(spec, analysis) {
     if (spec.maxSteps === undefined) {
       warn('maxSteps', 'cycle relies on the default 25-step budget; set maxSteps explicitly', 'cycle-budget')
     }
+  }
+
+  // --- over-decomposition lint ------------------------------------------------
+  // Advisory only. The main failure mode of a composed graph is turning every
+  // tool call into a node; these warnings point at an `agent` node or ordinary
+  // tools instead.
+  const nodes = spec.nodes ?? []
+  if (nodes.length > 12) {
+    warn('nodes', `${nodes.length} nodes; coarse-first graphs usually use 4-8 phase nodes`, 'too-many-nodes')
+  }
+
+  const containsStateRef = value => {
+    if (hasStateKey(value)) return true
+    if (Array.isArray(value)) return value.some(containsStateRef)
+    if (isPlainObject(value)) return Object.values(value).some(containsStateRef)
+    return false
+  }
+
+  for (const node of nodes) {
+    if (node.do === 'tool') {
+      const component = analysis.sccs[analysis.sccOf.get(node.id)]
+      const cyclic = (component?.length ?? 1) > 1
+        || (analysis.outgoing.get(node.id) ?? []).some(edge => edge.to === node.id)
+      if (!cyclic && Object.values(node.args ?? {}).every(value => !containsStateRef(value))) {
+        warn(`nodes.${node.id}`, 'tool node has only literal arguments and runs once; consider merging it into an agent node', 'literal-tool')
+      }
+    }
+    if (node.do === 'model') {
+      const outgoing = analysis.outgoing.get(node.id) ?? []
+      if (outgoing.length === 1 && analysis.nodes.get(outgoing[0].to)?.do === 'tool') {
+        warn(`nodes.${node.id}`, 'model feeds a single tool node; an agent node usually covers that step better', 'model-then-tool')
+      }
+    }
+  }
+
+  if (nodes.length > 0 && nodes.length <= 2
+    && nodes.every(node => node.do !== 'agent' && node.do !== 'gate')
+    && nodes.every(node => (analysis.outgoing.get(node.id) ?? []).length <= 1
+      && (analysis.incoming.get(node.id) ?? []).length <= 1
+      && analysis.reachableFromStart.has(node.id)
+      && analysis.canReachEnd.has(node.id))) {
+    warn('nodes', 'a one- or two-step linear graph; use ordinary DSH tools instead', 'tiny-graph')
+  }
+
+  // Longest chain in the SCC condensation, so a loop counts as one phase.
+  const relevant = new Set([...analysis.reachableFromStart].filter(id => analysis.canReachEnd.has(id)))
+  const components = analysis.sccs
+  const adjacency = components.map(() => new Set())
+  for (const [source, edges] of analysis.outgoing) {
+    if (!analysis.sccOf.has(source)) continue
+    const from = analysis.sccOf.get(source)
+    if (!components[from].some(id => relevant.has(id))) continue
+    for (const edge of edges) {
+      if (!analysis.sccOf.has(edge.to)) continue
+      const to = analysis.sccOf.get(edge.to)
+      if (from !== to) adjacency[from].add(to)
+    }
+  }
+  const lengths = new Map()
+  const longestFrom = index => {
+    if (lengths.has(index)) return lengths.get(index)
+    let best = 1
+    for (const next of adjacency[index]) best = Math.max(best, 1 + longestFrom(next))
+    lengths.set(index, best)
+    return best
+  }
+  let longest = { length: 0, index: -1 }
+  components.forEach((component, index) => {
+    if (!component.some(id => relevant.has(id))) return
+    const length = longestFrom(index)
+    if (length > longest.length) longest = { length, index }
+  })
+  if (longest.length > 8) {
+    warn(`nodes.${components[longest.index][0]}`, `linear chain of ${longest.length} phases; coarse-first graphs usually use 4-8 nodes`, 'long-chain')
   }
 
   return warnings

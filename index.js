@@ -28,6 +28,7 @@ import { createTracer } from './dsh-trace.js'
 import { langchainTool } from './dsh-tools.js'
 import { createResolver } from './compose/resolve.js'
 import { createMemorySpecStore, isSpecId, openSpecStore } from './compose/specs.js'
+import { COMPOSE_ACTIONS, createComposeTool } from './compose/tool.js'
 
 /**
  * Identity helper for graph modules written in TypeScript.
@@ -54,6 +55,7 @@ export const inject = ['tools']
 
 const RUN_TOOL = 'langgraph_run'
 const THREADS_TOOL = 'langgraph_threads'
+const COMPOSE_TOOL = 'langgraph_compose'
 const DEFAULT_RECURSION_LIMIT = 25
 let callSeq = 0
 
@@ -136,16 +138,39 @@ function describeInput(entry) {
  * @returns {string} section text.
  */
 export function renderGraphPrompt(registry, ready) {
-  const intro = 'LangGraph graphs are profile-registered, named graphs run by `langgraph_run`. '
+  const intro = 'LangGraph graphs are named graphs run by `langgraph_run`. A graph is either '
+    + 'profile-registered or composed with `langgraph_compose` for this session. '
     + 'They are not the `workflow` tool (`workflow` runs an ad-hoc JavaScript fan-out script).'
+  const composeGuidance = [
+    'Use `langgraph_compose` when the work has at least three dependent steps, needs a branch or retry, '
+      + 'must survive across turns, needs fan-out plus aggregation, or needs a human gate. Do not compose '
+      + 'for one or two linear steps, and do not wrap a single tool call. Prefer a registered graph when '
+      + 'one matches.',
+    'Coarse-first: aim for 4-8 phase nodes, not one node per tool call. Use `agent` for open work '
+      + '(a prose brief plus tools), `model` for one judgment, `gate` for a human decision, and `tool` '
+      + 'for a known atomic action. Put "how" in the node brief and "what/when" in the edges.',
+    'A composed graph is an immutable session-owned spec, not a file and not a DSH Session; change it '
+      + 'by composing a new spec. It does not appear in the registered list: call '
+      + '`langgraph_compose({ action: "list" })` or `langgraph_run` with no graph. Use ordinary DSH tools '
+      + 'for one-off or still-unclear work; a shape worth reusing belongs in a profile graph module.',
+  ]
+  const threadGuidance = 'A LangGraph thread is a durable checkpoint chain for one graph run, not a DSH Session. '
+    + 'Use `langgraph_threads` to list, inspect, time-travel, or delete threads, or read a graph\'s topology.'
+  const discovery = 'Call it with no `graph` to list the registered graphs, composed graphs, and their input schemas.'
   if (!ready) {
-    return `${intro} Call it with no \`graph\` to list the registered graphs and their input schemas.`
+    return [intro, ...composeGuidance, threadGuidance, discovery].join('\n\n')
   }
   const available = [...registry.values()]
     .filter(entry => entry.error === undefined)
     .sort((left, right) => left.id.localeCompare(right.id))
   if (available.length === 0) {
-    return `${intro}\n\nNo graph is registered yet; call it with no \`graph\` to re-check.`
+    return [
+      intro,
+      ...composeGuidance,
+      threadGuidance,
+      'No graph is registered yet; call it with no `graph` to re-check, or compose one with `langgraph_compose`.',
+      'Omit `graph` to list input schemas, or composed graphs in this session.',
+    ].join('\n\n')
   }
   const limit = 24
   const lines = available.slice(0, limit).map(entry => {
@@ -163,16 +188,10 @@ export function renderGraphPrompt(registry, ready) {
       + 'hand-rolling its steps with bash, subagent, or ad-hoc calls;\n'
       + '- the task needs a durable LangGraph thread, a background run (a DSH job), checkpoint '
       + 'history or replay, a Trajectory sub-call record, or the graph description says it interrupts.',
-    'When no graph\'s output matches, use ordinary DSH tools; do not wrap a single tool call in a graph '
-      + 'just for ceremony, and do not use the `workflow` tool as a substitute for a named graph.',
-    '`langgraph_run` only runs graphs already registered with this profile; it cannot define a new one, '
-      + 'so do not invent an id. For one-off or still-unclear work, compose ordinary DSH tools (or use '
-      + '`workflow` for an ad-hoc fan-out). A shape worth reusing belongs in a profile graph module, '
-      + 'which then appears in this list.',
-    'A LangGraph thread is a durable checkpoint chain for one graph run, not a DSH Session. '
-      + 'Use `langgraph_threads` to list, inspect, time-travel, or delete threads, or read a graph\'s topology.',
+    ...composeGuidance,
+    threadGuidance,
     `Registered graphs:\n${lines.join('\n')}`,
-    'Omit `graph` to list input schemas.',
+    'Omit `graph` to list input schemas, or composed graphs in this session.',
   ].join('\n\n')
 }
 
@@ -741,17 +760,37 @@ export function apply(ctx, config) {
   }
 
   // --- tools --------------------------------------------------------------------
-  async function describeGraphs() {
+  async function describeGraphs(exec) {
     await scan()
-    if (registry.size === 0) return 'No LangGraph graph is registered.'
-    const lines = [...registry.values()]
-      .sort((left, right) => left.id.localeCompare(right.id))
-      .map(entry => {
-        if (entry.error !== undefined) return `- ${entry.id}: unavailable (${entry.error.message})`
-        const input = describeInput(entry)
-        return `- ${entry.id}${entry.description === undefined ? '' : `: ${entry.description}`}`
-          + (input === undefined ? '' : `\n  input: ${input}`)
-      })
+    const lines = []
+    if (registry.size === 0) {
+      lines.push('No LangGraph graph is registered.')
+    } else {
+      lines.push(...[...registry.values()]
+        .sort((left, right) => left.id.localeCompare(right.id))
+        .map(entry => {
+          if (entry.error !== undefined) return `- ${entry.id}: unavailable (${entry.error.message})`
+          const input = describeInput(entry)
+          return `- ${entry.id}${entry.description === undefined ? '' : `: ${entry.description}`}`
+            + (input === undefined ? '' : `\n  input: ${input}`)
+        }))
+    }
+    const sessionId = exec?.agent?.id
+    if (sessionId !== undefined) {
+      try {
+        const specs = (await ensureSpecStore()).listSpecs(sessionId, { limit: 20 })
+        if (specs.length > 0) {
+          lines.push('', 'Composed graphs in this session:')
+          for (const spec of specs) {
+            lines.push(`- ${spec.id}`
+              + (spec.name === undefined ? '' : ` (${spec.name})`)
+              + (spec.description === undefined ? '' : `: ${spec.description}`))
+          }
+        }
+      } catch (error) {
+        lines.push('', `Composed graphs could not be listed: ${error?.message ?? error}`)
+      }
+    }
     const { durable } = await ensureSaver()
     lines.push('', durable
       ? 'Threads are durable: pass `thread` to continue a thread, `resume` to answer an interrupt.'
@@ -818,6 +857,19 @@ export function apply(ctx, config) {
       edges,
     }
   }
+
+  // --- compose tool ------------------------------------------------------------
+  // Composed specs share the runtime with registered graphs; this tool only
+  // validates, stores, and previews them. `langgraph_run` executes the id.
+  const composeGraph = createComposeTool({
+    ensureSpecStore,
+    ensureSaver,
+    topologyOf,
+    withThreadLock,
+    getVisibleTools: exec => ctx.tools.definitions(exec?.agent).map(definition => definition.name),
+    getSessionId: exec => exec?.agent?.id,
+    getCwd: exec => exec?.agent?.cwd ?? exec?.cwd,
+  })
 
   /** Bound one background job's model-facing result text. */
   function renderJobResult(result) {
@@ -1021,7 +1073,7 @@ export function apply(ctx, config) {
   async function runGraph(args, exec) {
     await scan()
     const id = typeof args?.graph === 'string' ? args.graph.trim() : ''
-    if (id === '') return { answer: await describeGraphs() }
+    if (id === '') return { answer: await describeGraphs(exec) }
     const sessionId = exec?.agent?.id
     const entry = await resolveEntry(id, sessionId)
     if (entry === undefined) {
@@ -1257,12 +1309,13 @@ export function apply(ctx, config) {
 
   ctx.effect(() => ctx.tools.register({
     name: RUN_TOOL,
-    description: 'Run one registered LangGraph graph by id. Use it when the user names a graph, a graph\'s '
-      + 'description matches the requested output, or the task needs a durable thread, background job, '
-      + 'checkpoint replay, or Trajectory record; it is not the `workflow` tool. Omit `graph` to list graphs '
-      + 'and input schemas. Threads are durable LangGraph checkpoint chains (not DSH Sessions): pass `thread` '
-      + 'to continue one, `resume` to answer an interrupt, and `checkpoint` to replay a snapshot from '
-      + '`langgraph_threads` history. `run_in_background` returns a DSH job id for `job_output`/`job_kill`.',
+    description: 'Run one LangGraph graph by id: a registered graph or one composed with `langgraph_compose` '
+      + 'in this session. Use it when the user names a graph, a graph\'s description matches the requested '
+      + 'output, or the task needs a durable thread, background job, checkpoint replay, or Trajectory record; '
+      + 'it is not the `workflow` tool. Omit `graph` to list graphs and input schemas. Threads are durable '
+      + 'LangGraph checkpoint chains (not DSH Sessions): pass `thread` to continue one, `resume` to answer '
+      + 'an interrupt, and `checkpoint` to replay a snapshot from `langgraph_threads` history. '
+      + '`run_in_background` returns a DSH job id for `job_output`/`job_kill`.',
     parameters: {
       type: 'object',
       properties: {
@@ -1298,10 +1351,11 @@ export function apply(ctx, config) {
 
   ctx.effect(() => ctx.tools.register({
     name: THREADS_TOOL,
-    description: 'Manage durable LangGraph threads and a graph\'s topology. `list` (this session by default), '
-      + '`state` (values, next, interrupts), `history` (checkpoint ids), `edit` (fork a checkpoint with new '
-      + 'values), `topology` (nodes/edges), or `delete`. A thread is a LangGraph checkpoint chain, not a '
-      + 'DSH Session. Replay an edit with `langgraph_run({ checkpoint })`.',
+    description: 'Manage durable LangGraph threads and a graph\'s topology, for registered and composed '
+      + 'graphs. `list` (this session by default), `state` (values, next, interrupts), `history` '
+      + '(checkpoint ids), `edit` (fork a checkpoint with new values), `topology` (nodes/edges), or '
+      + '`delete`. A thread is a LangGraph checkpoint chain, not a DSH Session. Replay an edit with '
+      + '`langgraph_run({ checkpoint })`.',
     parameters: {
       type: 'object',
       properties: {
@@ -1323,6 +1377,54 @@ export function apply(ctx, config) {
     },
     execute: (args, exec) => manageThreads(args ?? {}, exec),
   }), 'langgraph: threads tool')
+
+  ctx.effect(() => ctx.tools.register({
+    name: COMPOSE_TOOL,
+    description: 'Compose a session-owned LangGraph graph from a strict JSON GraphSpec, then run it with '
+      + '`langgraph_run`. Actions: `describe` (the IR manual and a minimal example), `validate`, '
+      + '`compose`, `list`, `get`, `delete`. Call `describe` before the first compose. Coarse-first: '
+      + '4-8 phase nodes; use `agent` for open work, `model` for one judgment, `gate` for a human '
+      + 'decision, and `tool` for a known atomic action. A composed graph is an immutable session spec, '
+      + 'not a file and not a DSH Session.',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: [...COMPOSE_ACTIONS],
+          description: 'describe, validate, compose, list, get, or delete.',
+        },
+        spec: {
+          type: 'object',
+          description: 'The GraphSpec IR object; required by validate and compose unless `path` is given.',
+          additionalProperties: true,
+        },
+        path: {
+          type: 'string',
+          description: 'Workspace-relative .json spec file; an alternative to `spec`.',
+        },
+        graph: {
+          type: 'string',
+          description: 'Composed graph id (lg_adhoc_...); required by get and delete.',
+        },
+        limit: {
+          type: 'integer',
+          description: 'Maximum composed graphs to list (default 20).',
+        },
+        delete_threads: {
+          type: 'boolean',
+          description: 'Delete the graph\'s threads with it; otherwise delete refuses while threads exist.',
+        },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }],
+    },
+    execute: (args, exec) => composeGraph(args ?? {}, exec),
+  }), 'langgraph: compose tool')
 
   // --- owner UI routes ----------------------------------------------------------
   // The optional client panel reads these authenticated, owner-only exact routes.

@@ -27,7 +27,9 @@ test('states the graph vocabulary, selection policy, and registry', () => {
   assert.match(text, /names one of the graph ids/)
   assert.match(text, /matches the requested output/)
   assert.match(text, /durable LangGraph thread/)
-  assert.match(text, /cannot define a new one/)
+  assert.match(text, /langgraph_compose/)
+  assert.match(text, /4-8 phase nodes/)
+  assert.match(text, /immutable session-owned spec/)
 
   // Registry and discovery.
   assert.match(text, /Registered graphs:/)

@@ -78,9 +78,28 @@ export function createContext(storageDomain, options = {}) {
         },
       }
     : undefined
+  const jobRuns = new Map()
+  let jobSeq = 0
+  const jobs = options.jobs === true
+    ? {
+        start(definition) {
+          const id = `job-${jobSeq++}`
+          const job = { id, append() {}, updateProgress() {} }
+          let done
+          try {
+            done = definition.run(job).done
+          } catch (error) {
+            done = Promise.reject(error)
+          }
+          jobRuns.set(id, done)
+          return id
+        },
+      }
+    : undefined
   const ctx = {
     routes,
     sections,
+    ...(jobs === undefined ? {} : { jobs: { runs: jobRuns } }),
     effect(factory) {
       const disposer = factory()
       if (typeof disposer === 'function') disposers.push(disposer)
@@ -94,6 +113,7 @@ export function createContext(storageDomain, options = {}) {
       if (service === 'storageDomain') return storageDomain
       if (service === 'connection') return connection
       if (service === 'systemPrompt') return systemPrompt
+      if (service === 'jobs') return jobs
       return undefined
     },
     logger: { warn() {} },
