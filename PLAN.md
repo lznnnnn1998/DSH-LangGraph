@@ -208,7 +208,12 @@ explicit request or at the end of the batch.
 - The guide was then split by tone: a prose guide for the method, a numbered `law` for
   MUST/MUST NOT rules (reducers, nodes, edges, maps, gates, failures, limits), a vocabulary
   reference, and archetype examples. The prompt points at the guide and the law.
-- 161 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
+- A big fine attempt failed because the manual itself was wrong: it said `read {path}`, but
+  DSH `read` requires `file_path`. The guide, law, examples and docs now use `file_path`
+  (and `write {file_path, content}`); `validate`/`compose` also check tool node args
+  against the visible tool's parameters (required, additional properties, literal types)
+  so this disagrees at compose time instead of inside a map.
+- 162 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
   the user's explicit go-ahead.
 
 ## 0.14.0 — sandboxed graph worker (DEFERRED — not a small version)

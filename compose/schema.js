@@ -71,10 +71,27 @@ function reducerFits(reducer, type, defaultValue) {
   }
 }
 
-/** A tools option as a Set, when the caller supplied one. */
+/**
+ * Normalize the tools option into visible names and, when the caller passed
+ * full DSH definitions, their JSON schemas for argument checking.
+ */
 function normalizeTools(tools) {
-  if (tools instanceof Set) return tools
-  if (Array.isArray(tools)) return new Set(tools)
+  if (tools instanceof Set) return { names: tools, schemas: new Map() }
+  if (Array.isArray(tools)) {
+    const names = new Set()
+    const schemas = new Map()
+    for (const item of tools) {
+      if (typeof item === 'string') {
+        names.add(item)
+        continue
+      }
+      if (item === null || typeof item !== 'object' || typeof item.name !== 'string') continue
+      names.add(item.name)
+      const schema = item.parameters ?? item.inputSchema ?? item.schema
+      if (schema !== undefined && schema !== null) schemas.set(item.name, schema)
+    }
+    return { names, schemas }
+  }
   return undefined
 }
 
@@ -235,7 +252,7 @@ function validateAgainst(value, schema, path, problems) {
 /**
  * Validate one GraphSpec.
  * @param {unknown} input - the parsed spec.
- * @param {{ tools?: string[] | Set<string> }} [options] - visible tool names to check.
+ * @param {{ tools?: string[] | Set<string> | object[] }} [options] - visible tool names or definitions to check.
  * @returns {{ ok: boolean, errors: object[], warnings: object[] }} the result.
  */
 export function validateSpec(input, options = {}) {
@@ -254,7 +271,9 @@ export function validateSpec(input, options = {}) {
   }
   const stateFields = new Map()
   const nodes = new Map()
-  const visibleTools = normalizeTools(options.tools)
+  const normalizedTools = normalizeTools(options.tools)
+  const visibleTools = normalizedTools?.names
+  const toolSchemas = normalizedTools?.schemas ?? new Map()
 
   function resolveRefType(ref, path) {
     const target = ref.$state
@@ -421,6 +440,7 @@ export function validateSpec(input, options = {}) {
       for (const [key, value] of Object.entries(node.args)) {
         checkStateValue(value, `${path}.args.${key}`)
       }
+      if (typeof node.tool === 'string') checkToolArgs(node.tool, node.args, `${path}.args`)
     }
     checkOut(node, path, options)
   }
@@ -509,6 +529,34 @@ export function validateSpec(input, options = {}) {
     if (visibleTools === undefined) return
     if (visibleTools.has(name)) return
     fail(path, `tool "${name}" is not visible to this agent`, [...visibleTools].sort().join(' | ') || 'no tools')
+  }
+
+  /** Check a tool node's args against the visible tool's own JSON schema. */
+  function checkToolArgs(toolName, args, path) {
+    const schema = toolSchemas.get(toolName)
+    if (!isPlainObject(schema)) return
+    const required = Array.isArray(schema.required) ? schema.required.filter(key => typeof key === 'string') : []
+    const properties = isPlainObject(schema.properties) ? schema.properties : {}
+    for (const key of required) {
+      if (!Object.prototype.hasOwnProperty.call(args, key)) {
+        fail(path, `tool "${toolName}" requires argument "${key}"`, required.join(' | '), 'A tool node\'s args pass through unchanged; use the tool\'s own schema (for read: file_path).')
+      }
+    }
+    if (schema.additionalProperties === false) {
+      for (const key of Object.keys(args)) {
+        if (!Object.prototype.hasOwnProperty.call(properties, key)) {
+          fail(`${path}.${key}`, `"${key}" is not an argument of tool "${toolName}"`, Object.keys(properties).sort().join(' | ') || undefined, 'A tool node\'s args pass through unchanged; use the tool\'s own schema.')
+        }
+      }
+    }
+    for (const [key, value] of Object.entries(args)) {
+      if (hasStateKey(value)) continue
+      const propSchema = properties[key]
+      if (!isPlainObject(propSchema)) continue
+      for (const problem of validateSchemaValue(value, propSchema, `${path}.${key}`)) {
+        fail(`${path}.${key}`, problem, undefined, `Argument "${key}" of tool "${toolName}" does not match the tool's schema.`)
+      }
+    }
   }
 
   function operandType(value, path) {

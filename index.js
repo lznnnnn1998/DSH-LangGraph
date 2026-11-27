@@ -927,7 +927,7 @@ export function apply(ctx, config) {
     ensureSaver,
     topologyOf,
     withThreadLock,
-    getVisibleTools: exec => ctx.tools.definitions(exec?.agent).map(definition => definition.name),
+    getVisibleTools: exec => ctx.tools.definitions(exec?.agent),
     getSessionId: exec => exec?.agent?.id,
     getCwd: exec => exec?.agent?.cwd ?? exec?.cwd,
     readStateOf: readComposedState,

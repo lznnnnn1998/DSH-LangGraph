@@ -154,6 +154,38 @@ test('rejects transforms and set values that do not fit the field type', () => {
   assert.ok(refErrors.some(error => error.path === 'nodes[2].values.report' && /cannot assign/.test(error.message)))
 })
 
+test('checks a tool node against the visible tool schema', () => {
+  const spec = {
+    ir: 1,
+    state: { files: { type: 'string[]', default: [] } },
+    nodes: [{
+      id: 'read',
+      do: 'tool',
+      tool: 'read',
+      args: { path: { $state: 'files' } },
+      out: { files: 'lines' },
+    }],
+    edges: [{ from: 'START', to: 'read' }, { from: 'read', to: 'END' }],
+  }
+  const definition = {
+    name: 'read',
+    parameters: {
+      type: 'object',
+      properties: { file_path: { type: 'string' } },
+      required: ['file_path'],
+      additionalProperties: false,
+    },
+  }
+  const bad = validateSpec(spec, { tools: [definition] })
+  assert.equal(bad.ok, false)
+  assert.ok(bad.errors.some(error => error.path === 'nodes[0].args' && /file_path/.test(error.message)))
+  assert.ok(bad.errors.some(error => error.path === 'nodes[0].args.path' && /not an argument/.test(error.message)))
+
+  spec.nodes[0].args = { file_path: { $state: 'files' } }
+  const good = validateSpec(spec, { tools: [definition] })
+  assert.equal(good.ok, true, JSON.stringify(good.errors))
+})
+
 test('checks tool visibility when the caller knows it', () => {
   const scan = fixture('scan-report')
   const invisible = errorsOf(scan, { tools: ['read'] })

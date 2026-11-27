@@ -82,7 +82,7 @@ const MAP_GATE_WRITE_EXAMPLE = Object.freeze({
       id: 'read',
       do: 'map',
       over: 'files',
-      body: { do: 'tool', tool: 'read', args: { path: { $state: 'item' } }, out: { contents: 'text' } },
+      body: { do: 'tool', tool: 'read', args: { file_path: { $state: 'item' } }, out: { contents: 'text' } },
     },
     { id: 'join', do: 'model', prompt: ['Summarize these files:\n', { $state: 'contents' }], out: { summary: 'text' } },
     { id: 'approve', do: 'gate', question: 'Write the summary?', options: ['Approve', 'Revise'], out: { decision: 'text' } },
@@ -90,7 +90,7 @@ const MAP_GATE_WRITE_EXAMPLE = Object.freeze({
       id: 'write',
       do: 'tool',
       tool: 'write',
-      args: { path: '.lg-big/summary.md', content: { $state: 'summary' } },
+      args: { file_path: '.lg-big/summary.md', content: { $state: 'summary' } },
       out: {},
     },
   ],
@@ -128,7 +128,7 @@ const MAP_EXTRACT_EXAMPLE = Object.freeze({
       id: 'read',
       do: 'map',
       over: 'files',
-      body: { do: 'tool', tool: 'read', args: { path: { $state: 'item' } }, out: { contents: 'text' } },
+      body: { do: 'tool', tool: 'read', args: { file_path: { $state: 'item' } }, out: { contents: 'text' } },
     },
     {
       id: 'extract',
@@ -229,7 +229,7 @@ Article 2. Nodes.
 2.1 A node id MUST be unique, MUST NOT equal a state field name, and MUST NOT be __start__,
 __end__ or __interrupt__.
 2.2 A tool node MUST name a tool visible to the calling agent. Its args are the DSH tool's
-own args, passed through unchanged (glob {pattern}, read {path}, write {path, content});
+own args, passed through unchanged (glob {pattern}, read {file_path}, write {file_path, content});
 the compiler MUST NOT rename or wrap them. Args may contain JSON literals or $state
 references.
 2.3 A model node MUST have a prompt; prompt is an array of strings and $state references.

@@ -139,7 +139,7 @@ A `$state` reference names a top-level field. A dotted path (`data.answer`) read
 `prompt` is an array of strings and `$state` references, concatenated exactly as written.
 `args` and `set.values` may contain nested literals and references. A tool node's `args`
 are passed unchanged to the DSH tool; use the tool's own argument names (`glob {pattern}`,
-`read {path}`, `write {path, content}`). A map body can put `{ $state: "item" }` anywhere
+`read {file_path}`, `write {file_path, content}`). A map body can put `{ $state: "item" }` anywhere
 an arg expects the item.
 
 A `gate` pauses the run with `{ question, options, node }`; `langgraph_run` returns
@@ -211,7 +211,7 @@ parent field named `item` or `index` is shadowed inside the body.
   "body": {
     "do": "tool",
     "tool": "read",
-    "args": { "path": { "$state": "item" } },
+    "args": { "file_path": { "$state": "item" } },
     "out": { "reports": "text" }
   }
 }
@@ -220,7 +220,7 @@ parent field named `item` or `index` is shadowed inside the body.
 - `over` must be a list you control. A tool result such as `No files found` is one
   string, not an empty list; check or guard it before mapping.
 - To map over files: a `glob` tool node with `out: { files: "lines" }` produces the
-  `string[]`; the body's `read` args use `{ path: { $state: "item" } }`, and
+  `string[]`; the body's `read` args use `{ file_path: { $state: "item" } }`, and
   `out: { contents: "text" }` into a `string[]` with `append` adds one string per item.
   `langgraph_compose({ action: "describe" })` returns this full pattern as the
   `map-gate-write` example.
