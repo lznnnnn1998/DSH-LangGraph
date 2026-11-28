@@ -162,7 +162,8 @@ DSH 0.2.x, LangGraph 1.7.x, Node 24.9+. The local suite has **166 tests** (`npm 
 and a `tsc --noEmit --skipLibCheck` check; the benchmark harness is in
 [`bench/run.mjs`](bench/run.mjs). The **1.6.1** release is on npm, and the gallery,
 benchmark report and 57s demo ship with it. The runtime is unchanged from 1.5.0; 1.6.1
-adds the examples, benchmark and documentation.
+adds the examples, benchmark and documentation. 1.6.1 is the only published version;
+older npm versions were removed and cannot be restored under the same name.
 
 ## Community
 
