@@ -158,10 +158,11 @@ plugin adds no privileged execution path.
 
 ## Compatibility and tests
 
-DSH 0.2.x, LangGraph 1.7.x, Node 22/24/26. The local suite has **166 tests** (`npm test`)
+DSH 0.2.x, LangGraph 1.7.x, Node 24.9+. The local suite has **166 tests** (`npm test`)
 and a `tsc --noEmit --skipLibCheck` check; the benchmark harness is in
-[`bench/run.mjs`](bench/run.mjs). The 1.5.0 release is on npm; the gallery, benchmark report
-and demo are in this repository.
+[`bench/run.mjs`](bench/run.mjs). The **1.6.0** release is on npm, and the gallery,
+benchmark report and 57s demo ship with it. The runtime is unchanged from 1.5.0; 1.6.0
+adds the examples, benchmark and documentation.
 
 ## Community
 

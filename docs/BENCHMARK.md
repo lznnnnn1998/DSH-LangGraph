@@ -1,7 +1,8 @@
 # A small DSH benchmark: ordinary loop vs dsh-langgraph graphs
 
-**Date:** 2026-11-27 · **Plugin:** dsh-langgraph 1.5.0 · **DSH:** local `deepseek-harness`
-checkout · **Model:** DeepSeek-V4.1-Flash · **Host:** one macOS machine.
+**Date:** 2026-11-27 · **Plugin:** dsh-langgraph 1.5.0 (runtime unchanged in 1.6.0) ·
+**DSH:** local `deepseek-harness` checkout · **Model:** DeepSeek-V4.1-Flash · **Host:** one
+macOS machine.
 
 This is a directional comparison, not a leaderboard. The question: when does an explicit
 graph buy enough at a seam to justify its cost over the stock DSH ordinary loop?

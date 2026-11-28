@@ -4,10 +4,10 @@ Constraints: **no DSH source changes, no LangGraph source changes, no agent-loop
 replacement.** All work is a plugin change on this checkout.
 
 Current release:
-- GitHub `main` = `8435a47`; tag `v1.0.1`; npm = `@lzn1998/dsh-langgraph@1.0.1`
-- Runtime composition (`1.1.0`–`1.5.0`) is local only: not pushed, tagged, or published.
-- 159 tests pass; TypeScript is not installed in this checkout, so `tsc` was not run
-- `0.6.0`–`1.0.1` are commits on `main`; `v1.0.1` tags the release
+- tag `v1.6.0`; npm = `@lzn1998/dsh-langgraph@1.6.0`; main has the 1.6.0 release commit.
+- `1.1.0`–`1.6.0` are released: pushed, tagged, and published.
+- 166 tests pass; typecheck (`tsc --noEmit --skipLibCheck`) is green.
+- `0.6.0`–`1.0.1` are commits on `main`; `v1.0.1` tags the first release.
 - `0.6.0` system-prompt graph list is committed in `537292d` (21 tests pass)
 - this plan is committed in `d8ab90e`
 - `0.7.0` BaseStore is committed in `69051ac`
@@ -20,7 +20,7 @@ Current release:
 - `0.13.1` prompt distinction is committed (53 tests pass) and verified in Web:
   “扫描一下这个目录里有多少 JS 文件” now lists graphs, then calls `scan-report`
 - `1.0.0` is released (tag, npm)
-- `1.0.1` open-shape guidance and structural prompt tests are implemented; release pending
+- `1.0.1` open-shape guidance and structural prompt tests are implemented; released.
 - `0.14.0` sandbox worker is deferred after checking the sandbox surface (see below)
 
 ## Per-version checklist
@@ -170,7 +170,7 @@ explicit request or at the end of the batch.
 - `subagent` nodes; map-report/ask-workspace/ask-subagent/ask-user conformance specs.
 - 18 tests; commit `203f10c`.
 
-## 1.5.0 — failure, recovery, and docs (DONE, release pending)
+## 1.5.0 — failure, recovery, and docs (DONE)
 - Structured failure result: failed node/SCC, upstream/downstream, pending, last three
   bounded supersteps, error with `itemIndex`, state, recovery hint; background jobs carry
   it too. Success results carry a small run report.
@@ -223,8 +223,20 @@ explicit request or at the end of the batch.
   overstated three advisory lints, and docs still said "IR manual/minimal example".
   Hidden map ids, registered-graph failure fields and the tool-schema authority are now
   stated precisely; merge/limit/ref tests added. 165 tests; typecheck (skipLibCheck) green.
-- 165 tests; local commit (M5). Not pushed, tagged, or published; final push waits for
-  the user's explicit go-ahead.
+- 165 tests; released as v1.5.0 (166 tests now; see 1.6.0).
+
+## 1.6.0 — gallery, benchmark, demo, README (DONE)
+- Six copyable GraphSpecs (`research-brief`, `repo-scan`, `pr-review`, `incident-triage`,
+  `data-extract`, `approval-plan`), an attractive static gallery with inline topology and
+  prompts, and a test that validates every spec.
+- A reproducible official-DSH-vs-plugin benchmark harness (`bench/run.mjs`) and a short
+  report with the 12-topic Web case; the small-task variance is documented.
+- A 57s Playwright recording of a completed 12-topic Web session, plus the screenshot.
+- README rewritten around the high-star DSH plugin pattern: centered icon/badges, real
+  screenshot/video, install, 60s quickstart, gallery, benchmark, when not to use,
+  reference, trust boundary, compatibility and community.
+- No runtime changes; the npm tarball now includes `gallery`, `bench` and `media`;
+  166 tests; typecheck green. Released as v1.6.0.
 
 ## 0.14.0 — sandboxed graph worker (DEFERRED — not a small version)
 Checked against DSH 0.2.2-rc.5/0.2.3-alpha.2:
