@@ -5,7 +5,7 @@ replacement.** All work is a plugin change on this checkout.
 
 Current release:
 - tag `v1.6.1`; npm = `@lzn1998/dsh-langgraph@1.6.1`; main has the 1.6.1 release commit.
-- `1.1.0`–`1.6.1` are released: pushed, tagged, and published.
+- `1.6.1` is the only version on npm; an accidental package-level unpublish removed 1.5.0 and earlier, and npm tombstones prevent republishing them. Their git tags remain.
 - 166 tests pass; typecheck (`tsc --noEmit --skipLibCheck`) is green.
 - `0.6.0`–`1.0.1` are commits on `main`; `v1.0.1` tags the first release.
 - `0.6.0` system-prompt graph list is committed in `537292d` (21 tests pass)
