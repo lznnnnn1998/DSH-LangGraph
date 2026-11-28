@@ -38,6 +38,7 @@
     "locale",
     "docs",
     "gallery",
+    "schema",
     "lib/client.js",
     "client/index.tsx",
     "scripts/build-client.mjs",
@@ -54,7 +55,8 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "build:client": "node scripts/build-client.mjs"
+    "build:client": "node scripts/build-client.mjs",
+    "build:schema": "node scripts/build-schema.mjs"
   },
   "dependencies": {
     "@langchain/core": "^1.5.1",
@@ -73,5 +75,8 @@
         "@deepseek-ai/dsh-client-ui-sidebar"
       ]
     }
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0"
   }
 }

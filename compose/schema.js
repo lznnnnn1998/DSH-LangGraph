@@ -659,8 +659,13 @@ export function validateSpec(input, options = {}) {
     fail('', 'the spec must be a JSON object', 'object')
     return { ok: false, errors, warnings }
   }
-  checkKeys(input, ['ir', 'name', 'description', 'state', 'nodes', 'edges', 'output', 'maxSteps'], '', fail)
+  checkKeys(input, ['$schema', 'ir', 'name', 'description', 'state', 'nodes', 'edges', 'output', 'maxSteps'], '', fail)
 
+  // `$schema` is editor metadata: it points at `schema/graphspec.schema.json` and
+  // carries no meaning for the compiler or the content id.
+  if (input.$schema !== undefined && (typeof input.$schema !== 'string' || input.$schema.trim() === '')) {
+    fail('$schema', '`$schema` must be a non-empty URL string when present', 'string')
+  }
   if (input.ir !== IR_VERSION) {
     fail('ir', `unsupported IR version ${JSON.stringify(input.ir)}; this compiler reads ir: ${IR_VERSION}`, String(IR_VERSION))
   }

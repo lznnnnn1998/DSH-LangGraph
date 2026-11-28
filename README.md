@@ -9,15 +9,16 @@ Pause for approval. Survive a restart. Fan out over unknown files. See the graph
 No arbitrary model-written JavaScript.
 
 [![npm](https://img.shields.io/npm/v/@lzn1998/dsh-langgraph?style=flat-square&label=npm)](https://www.npmjs.com/package/@lzn1998/dsh-langgraph)
+[![CI](https://github.com/lznnnnn1998/DSH-LangGraph/actions/workflows/ci.yml/badge.svg)](https://github.com/lznnnnn1998/DSH-LangGraph/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-263146?style=flat-square)](LICENSE)
 [![DSH](https://img.shields.io/badge/DSH-0.2.x-7c9cff?style=flat-square)](docs/DETAIL.md)
 [![LangGraph](https://img.shields.io/badge/LangGraph-1.7.x-f0abfc?style=flat-square)](docs/ECOSYSTEM.md)
 
-[Gallery](gallery/index.html) · [57s real-session demo](media/dsh-langgraph-demo.webm) · [Benchmark](docs/BENCHMARK.md) · [Contract](docs/COMPOSE.md) · [npm](https://www.npmjs.com/package/@lzn1998/dsh-langgraph)
+[Gallery](https://lznnnnn1998.github.io/DSH-LangGraph/gallery/) · [57s real-session demo](media/dsh-langgraph-demo.webm) · [Benchmark](docs/BENCHMARK.md) · [Contract](docs/COMPOSE.md) · [npm](https://www.npmjs.com/package/@lzn1998/dsh-langgraph)
 
-<a href="https://github.com/lznnnnn1998/DSH-LangGraph/blob/main/media/dsh-langgraph-demo.webm"><img src="gallery/assets/session.png" alt="A real DSH session: a 12-topic brief, a human gate, and a 12-row output" width="860"></a>
+<a href="https://github.com/lznnnnn1998/DSH-LangGraph/blob/main/media/dsh-langgraph-demo.webm"><img src="https://raw.githubusercontent.com/lznnnnn1998/DSH-LangGraph/main/media/dsh-langgraph-demo.gif" alt="A real DSH session: 12 rows, a gate that pauses the run, the approval, and the graph's node table" width="800"></a>
 
-<sub>A real DSH Web session, not a mock: 12 files → two 12-item maps → outline → human gate → write. 55s, 12 rows, 226K reported tokens.</sub>
+<sub>A real DSH Web session, not a mock: 12 files → two 12-item maps → an outline → a human gate → the write. The loop is 9s; the link opens all 57s.</sub>
 </div>
 
 ---
@@ -95,8 +96,8 @@ Six small graphs, each earning its keep at a seam — no node catalogue:
 | [Data extract](gallery/specs/data-extract.lg.json) | one JSON record per file, one JSON array | no |
 | [Approval plan](gallery/specs/approval-plan.lg.json) | plan with tools, approve, execute, write | yes |
 
-Open [`gallery/index.html`](gallery/index.html) for the visual gallery, copy a prompt, or
-load a spec with `langgraph_compose({ action: "compose", path: "gallery/specs/…" })`.
+Open the [visual gallery](https://lznnnnn1998.github.io/DSH-LangGraph/gallery/) for
+copyable prompts, or load a spec with `langgraph_compose({ action: "compose", path: "gallery/specs/…" })`.
 The gallery is JSON-only; a pull request with a new spec and a validated output is welcome.
 
 ## When not to use a graph
@@ -123,6 +124,10 @@ visibility and the visible tool's own argument schema, so a wrong `read` argumen
 before a run, not inside a map. The model can reason from the contract instead of reading
 the plugin source.
 
+The same vocabulary ships as a JSON Schema, so a spec can carry `$schema` and an editor
+completes its field names and flags a bad reducer as you type:
+[`schema/graphspec.schema.json`](schema/graphspec.schema.json).
+
 ## Reference
 
 - `langgraph_run` (`graph`, `input`, `thread`, `resume`, `maxSteps`, `run_in_background`;
@@ -132,6 +137,8 @@ the plugin source.
   `delete`). `history` lists checkpoints; `edit` forks a checkpoint with new values.
 - `langgraph_compose` (`action`: `describe` | `validate` | `compose` | `list` | `get` |
   `delete` | `fork`). Specs are content-addressed, session-owned, immutable and capped.
+- IR schema: [`schema/graphspec.schema.json`](schema/graphspec.schema.json), draft 2020-12.
+  A spec may carry `$schema`; the compiler ignores it and the content id does not change.
 - Registry: `graphs/*.js` (and `graphs/*.ts` on Node 24.22+) plus `config.graphs`.
 - Helpers: `callTool`, `askUser`, `subagent`, `callModel`, `chatModel`, `tools`, `createReactAgent`, `store`.
 - Long-term memory: a real LangGraph `BaseStore` over `langgraph_store`; get/put/delete,

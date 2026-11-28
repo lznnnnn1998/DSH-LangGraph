@@ -46,14 +46,24 @@ export function isSpecId(id) {
   return typeof id === 'string' && id.startsWith(SPEC_PREFIX)
 }
 
+/** A spec without editor metadata: `$schema` is not part of the graph. */
+function semanticSpec(spec) {
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return spec
+  if (!Object.prototype.hasOwnProperty.call(spec, '$schema')) return spec
+  const copy = { ...spec }
+  delete copy.$schema
+  return copy
+}
+
 /**
  * Content id of a spec: `lg_adhoc_` plus 24 hex of the sha256 of its normalized
- * JSON. Object keys are sorted; array order is preserved; `ir` is included.
+ * JSON. Object keys are sorted; array order is preserved; `ir` is included and
+ * `$schema` is not, so adding an editor hint does not change the graph's id.
  * @param {object} spec - a GraphSpec.
  * @returns {string} the spec id.
  */
 export function specId(spec) {
-  const digest = createHash('sha256').update(stableStringify(spec)).digest('hex')
+  const digest = createHash('sha256').update(stableStringify(semanticSpec(spec))).digest('hex')
   return `${SPEC_PREFIX}${digest.slice(0, 24)}`
 }
 

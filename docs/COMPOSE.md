@@ -103,6 +103,14 @@ listed by `langgraph_compose({ action: "list" })` and by `langgraph_run` with no
 is required and must be `1`. No node id may equal a state field name; `__start__`,
 `__end__`, and `__interrupt__` are reserved.
 
+The IR is also published as [`schema/graphspec.schema.json`](../schema/graphspec.schema.json)
+(draft 2020-12), generated from the compiler's own constants and checked by the test suite.
+Put its URL in a spec's `$schema` and an editor completes field names, flags an unknown
+node kind, and rejects a reducer that cannot fit its field. The schema is a convenience,
+not the authority: `compose` still checks what JSON Schema cannot express — unique node
+ids, edges that name real nodes, and a map whose field is a list. `$schema` is ignored by
+the compiler and does not change a spec's content id.
+
 ### State
 
 | Type | Default must be |

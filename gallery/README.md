@@ -1,9 +1,10 @@
 # The dsh-langgraph gallery
 
-Six small graphs that each earn their keep at a real seam. Open
-[`index.html`](index.html) for the visual gallery — it is a static page, no server or build
-step. Every graph is a plain JSON spec, so it can be read, copied, reviewed, and shared
-without shipping JavaScript.
+Six small graphs that each earn their keep at a real seam. Open the
+[live gallery](https://lznnnnn1998.github.io/DSH-LangGraph/gallery/), or
+[`index.html`](index.html) offline — it is a static page, no server or build step. Every
+graph is a plain JSON spec, so it can be read, copied, reviewed, and shared without
+shipping JavaScript. Each spec carries `$schema`, so an editor checks it as you type.
 
 | Graph | The seam | Gate | Tools | Spec |
 |---|---|---|:---:|---|

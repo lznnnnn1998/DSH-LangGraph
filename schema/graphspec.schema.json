@@ -1,0 +1,961 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/lznnnnn1998/DSH-LangGraph/main/schema/graphspec.schema.json",
+  "title": "dsh-langgraph GraphSpec",
+  "description": "The JSON intermediate representation a dsh-langgraph graph is composed from. The compiler is deterministic; no model translates it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ir",
+    "state",
+    "nodes",
+    "edges"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional. Points an editor at this schema; the compiler ignores it. Use https://raw.githubusercontent.com/lznnnnn1998/DSH-LangGraph/main/schema/graphspec.schema.json."
+    },
+    "ir": {
+      "const": 1,
+      "description": "IR version this spec is written for."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "state": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 64,
+      "propertyNames": {
+        "pattern": "^(?!__(interrupt|start|end)$)[^\\s.]+$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/stateField"
+      },
+      "description": "The ledger every node reads and writes."
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/node_tool"
+          },
+          {
+            "$ref": "#/$defs/node_model"
+          },
+          {
+            "$ref": "#/$defs/node_agent"
+          },
+          {
+            "$ref": "#/$defs/node_gate"
+          },
+          {
+            "$ref": "#/$defs/node_map"
+          },
+          {
+            "$ref": "#/$defs/node_set"
+          },
+          {
+            "$ref": "#/$defs/node_subagent"
+          }
+        ]
+      }
+    },
+    "edges": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {
+        "$ref": "#/$defs/edge"
+      },
+      "description": "Handoffs between nodes, including from \"START\" and to \"END\"."
+    },
+    "output": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "State fields a run returns."
+    },
+    "maxSteps": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    }
+  },
+  "$defs": {
+    "nodeId": {
+      "type": "string",
+      "pattern": "^\\S+$",
+      "not": {
+        "enum": [
+          "START",
+          "END",
+          "__start__",
+          "__end__",
+          "__interrupt__"
+        ]
+      },
+      "description": "A node id. \"START\" and \"END\" are edges, not nodes."
+    },
+    "stateRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$state"
+      ],
+      "properties": {
+        "$state": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A state field, or \"field.key\" for a json field."
+        }
+      },
+      "description": "A whole value read from the graph state."
+    },
+    "prompt": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Text parts and state references, joined in order.",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "$ref": "#/$defs/stateRef"
+          }
+        ]
+      }
+    },
+    "out": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[^\\s.]+$"
+      },
+      "additionalProperties": {
+        "enum": [
+          "text",
+          "lines",
+          "json",
+          "bool",
+          "number",
+          "first",
+          "count"
+        ]
+      },
+      "description": "State fields this node writes, and the form each result takes."
+    },
+    "operand": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/stateRef"
+        },
+        {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        {
+          "type": "array"
+        },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "not": {
+            "required": [
+              "op"
+            ]
+          }
+        }
+      ]
+    },
+    "guard": {
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "args"
+          ],
+          "properties": {
+            "op": {
+              "enum": [
+                "eq",
+                "ne",
+                "in",
+                "gt",
+                "gte",
+                "lt",
+                "lte",
+                "exists",
+                "and",
+                "or",
+                "not"
+              ]
+            },
+            "args": {
+              "type": "array"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "op": {
+                    "enum": [
+                      "and",
+                      "or"
+                    ]
+                  }
+                },
+                "required": [
+                  "op"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "args": {
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/guard"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "op": {
+                    "enum": [
+                      "not"
+                    ]
+                  }
+                },
+                "required": [
+                  "op"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "args": {
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/guard"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "op": {
+                    "enum": [
+                      "exists"
+                    ]
+                  }
+                },
+                "required": [
+                  "op"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "args": {
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/operand"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "op": {
+                    "enum": [
+                      "eq",
+                      "ne",
+                      "in",
+                      "gt",
+                      "gte",
+                      "lt",
+                      "lte"
+                    ]
+                  }
+                },
+                "required": [
+                  "op"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "args": {
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {
+                      "$ref": "#/$defs/operand"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "stateField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "default"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "json",
+            "string[]",
+            "number[]"
+          ]
+        },
+        "default": {},
+        "reducer": {
+          "enum": [
+            "replace",
+            "append",
+            "add",
+            "max",
+            "min",
+            "merge"
+          ],
+          "description": "How concurrent or repeated writes combine. Defaults to \"replace\"."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "string"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "number"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "boolean"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "string[]"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "number[]"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reducer": {
+                "enum": [
+                  "add",
+                  "max",
+                  "min"
+                ]
+              }
+            },
+            "required": [
+              "reducer"
+            ]
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "const": "number"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reducer": {
+                "const": "append"
+              }
+            },
+            "required": [
+              "reducer"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "string[]",
+                      "number[]"
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              },
+              {
+                "properties": {
+                  "type": {
+                    "const": "json"
+                  },
+                  "default": {
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "type",
+                  "default"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reducer": {
+                "const": "merge"
+              }
+            },
+            "required": [
+              "reducer"
+            ]
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "const": "json"
+              },
+              "default": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "const": "END"
+          }
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "const": "START"
+          }
+        },
+        "when": {
+          "$ref": "#/$defs/guard"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "from": {
+                "const": "START"
+              }
+            },
+            "required": [
+              "from"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "when"
+              ]
+            },
+            "description": "Edges from START are unconditional."
+          }
+        }
+      ]
+    },
+    "node_tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "do",
+        "tool",
+        "args",
+        "out"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "do": {
+          "const": "tool"
+        },
+        "tool": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "args": {
+          "type": "object",
+          "description": "Passed to the tool unchanged. A whole argument may be { \"$state\": \"<field>\" }."
+        },
+        "out": {
+          "$ref": "#/$defs/out"
+        }
+      }
+    },
+    "node_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "do",
+        "prompt",
+        "out"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "do": {
+          "const": "model"
+        },
+        "prompt": {
+          "$ref": "#/$defs/prompt"
+        },
+        "system": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "schema": {
+          "type": "object",
+          "description": "A JSON Schema for the model or subagent result."
+        },
+        "out": {
+          "$ref": "#/$defs/out"
+        }
+      }
+    },
+    "node_agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "do",
+        "prompt",
+        "tools",
+        "out"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "do": {
+          "const": "agent"
+        },
+        "prompt": {
+          "$ref": "#/$defs/prompt"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "description": "Tool names the agent may call; each must be visible to the calling session."
+        },
+        "out": {
+          "$ref": "#/$defs/out"
+        }
+      }
+    },
+    "node_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "do",
+        "question",
+        "out"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "do": {
+          "const": "gate"
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "uniqueItems": true,
+          "description": "Labels shown to the human. The resume value is the answer itself, not an option index."
+        },
+        "out": {
+          "$ref": "#/$defs/out"
+        }
+      }
+    },
+    "node_map": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "do",
+        "over",
+        "body"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "do": {
+          "const": "map"
+        },
+        "over": {
+          "type": "string",
+          "pattern": "^[^.]+$",
+          "description": "A top-level string[] or number[] state field."
+        },
+        "body": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/mapBody_tool"
+            },
+            {
+              "$ref": "#/$defs/mapBody_model"
+            },
+            {
+              "$ref": "#/$defs/mapBody_agent"
+            },
+            {
+              "$ref": "#/$defs/mapBody_subagent"
+            }
+          ],
+          "description": "One node, run once per item. A gate or a nested map is not allowed."
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "maxConcurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        }
+      }
+    },
+    "node_set": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "do",
+        "values"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "do": {
+          "const": "set"
+        },
+        "values": {
+          "type": "object",
+          "description": "State fields written by this node; a value may be a state reference."
+        }
+      }
+    },
+    "node_subagent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "do",
+        "prompt",
+        "out"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "do": {
+          "const": "subagent"
+        },
+        "prompt": {
+          "$ref": "#/$defs/prompt"
+        },
+        "schema": {
+          "type": "object",
+          "description": "A JSON Schema for the model or subagent result."
+        },
+        "out": {
+          "$ref": "#/$defs/out"
+        }
+      }
+    },
+    "mapBody_tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "do",
+        "tool",
+        "args",
+        "out"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "do": {
+          "const": "tool"
+        },
+        "tool": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "args": {
+          "type": "object",
+          "description": "Passed to the tool unchanged. A whole argument may be { \"$state\": \"<field>\" }."
+        },
+        "out": {
+          "$ref": "#/$defs/out"
+        }
+      }
+    },
+    "mapBody_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "do",
+        "prompt",
+        "out"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "do": {
+          "const": "model"
+        },
+        "prompt": {
+          "$ref": "#/$defs/prompt"
+        },
+        "system": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "schema": {
+          "type": "object",
+          "description": "A JSON Schema for the model or subagent result."
+        },
+        "out": {
+          "$ref": "#/$defs/out"
+        }
+      }
+    },
+    "mapBody_agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "do",
+        "prompt",
+        "tools",
+        "out"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "do": {
+          "const": "agent"
+        },
+        "prompt": {
+          "$ref": "#/$defs/prompt"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "description": "Tool names the agent may call; each must be visible to the calling session."
+        },
+        "out": {
+          "$ref": "#/$defs/out"
+        }
+      }
+    },
+    "mapBody_subagent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "do",
+        "prompt",
+        "out"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/nodeId"
+        },
+        "do": {
+          "const": "subagent"
+        },
+        "prompt": {
+          "$ref": "#/$defs/prompt"
+        },
+        "schema": {
+          "type": "object",
+          "description": "A JSON Schema for the model or subagent result."
+        },
+        "out": {
+          "$ref": "#/$defs/out"
+        }
+      }
+    }
+  }
+}

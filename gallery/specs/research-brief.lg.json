@@ -1,23 +1,53 @@
 {
+  "$schema": "https://raw.githubusercontent.com/lznnnnn1998/DSH-LangGraph/main/schema/graphspec.schema.json",
   "ir": 1,
   "name": "research-brief",
   "description": "Read a folder, extract one row per file, approve an outline, and write a brief.",
   "state": {
-    "pattern": { "type": "string", "default": "topics/*.txt" },
-    "files": { "type": "string[]", "default": [] },
-    "contents": { "type": "string[]", "default": [], "reducer": "append" },
-    "extracts": { "type": "json", "default": [], "reducer": "append" },
-    "outline": { "type": "string", "default": "" },
-    "decision": { "type": "string", "default": "" },
-    "brief": { "type": "string", "default": "" }
+    "pattern": {
+      "type": "string",
+      "default": "topics/*.txt"
+    },
+    "files": {
+      "type": "string[]",
+      "default": []
+    },
+    "contents": {
+      "type": "string[]",
+      "default": [],
+      "reducer": "append"
+    },
+    "extracts": {
+      "type": "json",
+      "default": [],
+      "reducer": "append"
+    },
+    "outline": {
+      "type": "string",
+      "default": ""
+    },
+    "decision": {
+      "type": "string",
+      "default": ""
+    },
+    "brief": {
+      "type": "string",
+      "default": ""
+    }
   },
   "nodes": [
     {
       "id": "list",
       "do": "tool",
       "tool": "glob",
-      "args": { "pattern": { "$state": "pattern" } },
-      "out": { "files": "lines" }
+      "args": {
+        "pattern": {
+          "$state": "pattern"
+        }
+      },
+      "out": {
+        "files": "lines"
+      }
     },
     {
       "id": "read",
@@ -27,8 +57,14 @@
       "body": {
         "do": "tool",
         "tool": "read",
-        "args": { "file_path": { "$state": "item" } },
-        "out": { "contents": "text" }
+        "args": {
+          "file_path": {
+            "$state": "item"
+          }
+        },
+        "out": {
+          "contents": "text"
+        }
       }
     },
     {
@@ -38,57 +74,138 @@
       "maxConcurrency": 8,
       "body": {
         "do": "model",
-        "prompt": ["Extract topic, claim and risk as JSON. Source:\n", { "$state": "item" }],
+        "prompt": [
+          "Extract topic, claim and risk as JSON. Source:\n",
+          {
+            "$state": "item"
+          }
+        ],
         "schema": {
           "type": "object",
-          "required": ["topic", "claim", "risk"],
+          "required": [
+            "topic",
+            "claim",
+            "risk"
+          ],
           "properties": {
-            "topic": { "type": "string" },
-            "claim": { "type": "string" },
-            "risk": { "type": "string" }
+            "topic": {
+              "type": "string"
+            },
+            "claim": {
+              "type": "string"
+            },
+            "risk": {
+              "type": "string"
+            }
           }
         },
-        "out": { "extracts": "json" }
+        "out": {
+          "extracts": "json"
+        }
       }
     },
     {
       "id": "draft_outline",
       "do": "model",
-      "prompt": ["Draft a one-paragraph summary and an ordered outline from these extracts:\n", { "$state": "extracts" }],
-      "out": { "outline": "text" }
+      "prompt": [
+        "Draft a one-paragraph summary and an ordered outline from these extracts:\n",
+        {
+          "$state": "extracts"
+        }
+      ],
+      "out": {
+        "outline": "text"
+      }
     },
     {
       "id": "approve",
       "do": "gate",
       "question": "Approve this outline before I write the brief?",
-      "options": ["Approve", "Revise"],
-      "out": { "decision": "text" }
+      "options": [
+        "Approve",
+        "Revise"
+      ],
+      "out": {
+        "decision": "text"
+      }
     },
     {
       "id": "compose",
       "do": "model",
-      "prompt": ["Write the final brief from this approved outline.\nOutline:\n", { "$state": "outline" }],
-      "out": { "brief": "text" }
+      "prompt": [
+        "Write the final brief from this approved outline.\nOutline:\n",
+        {
+          "$state": "outline"
+        }
+      ],
+      "out": {
+        "brief": "text"
+      }
     },
     {
       "id": "write",
       "do": "tool",
       "tool": "write",
-      "args": { "file_path": "brief.md", "content": { "$state": "brief" } },
+      "args": {
+        "file_path": "brief.md",
+        "content": {
+          "$state": "brief"
+        }
+      },
       "out": {}
     }
   ],
   "edges": [
-    { "from": "START", "to": "list" },
-    { "from": "list", "to": "read" },
-    { "from": "read", "to": "extract" },
-    { "from": "extract", "to": "draft_outline" },
-    { "from": "draft_outline", "to": "approve" },
-    { "from": "approve", "to": "compose", "when": { "op": "eq", "args": [{ "$state": "decision" }, "Approve"] } },
-    { "from": "approve", "to": "END", "when": true },
-    { "from": "compose", "to": "write" },
-    { "from": "write", "to": "END" }
+    {
+      "from": "START",
+      "to": "list"
+    },
+    {
+      "from": "list",
+      "to": "read"
+    },
+    {
+      "from": "read",
+      "to": "extract"
+    },
+    {
+      "from": "extract",
+      "to": "draft_outline"
+    },
+    {
+      "from": "draft_outline",
+      "to": "approve"
+    },
+    {
+      "from": "approve",
+      "to": "compose",
+      "when": {
+        "op": "eq",
+        "args": [
+          {
+            "$state": "decision"
+          },
+          "Approve"
+        ]
+      }
+    },
+    {
+      "from": "approve",
+      "to": "END",
+      "when": true
+    },
+    {
+      "from": "compose",
+      "to": "write"
+    },
+    {
+      "from": "write",
+      "to": "END"
+    }
   ],
-  "output": ["brief", "decision"],
+  "output": [
+    "brief",
+    "decision"
+  ],
   "maxSteps": 30
 }
