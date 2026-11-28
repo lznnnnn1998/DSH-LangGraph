@@ -4,8 +4,8 @@ Constraints: **no DSH source changes, no LangGraph source changes, no agent-loop
 replacement.** All work is a plugin change on this checkout.
 
 Current release:
-- tag `v1.6.0`; npm = `@lzn1998/dsh-langgraph@1.6.0`; main has the 1.6.0 release commit.
-- `1.1.0`–`1.6.0` are released: pushed, tagged, and published.
+- tag `v1.6.1`; npm = `@lzn1998/dsh-langgraph@1.6.1`; main has the 1.6.1 release commit.
+- `1.1.0`–`1.6.1` are released: pushed, tagged, and published.
 - 166 tests pass; typecheck (`tsc --noEmit --skipLibCheck`) is green.
 - `0.6.0`–`1.0.1` are commits on `main`; `v1.0.1` tags the first release.
 - `0.6.0` system-prompt graph list is committed in `537292d` (21 tests pass)
@@ -223,9 +223,9 @@ explicit request or at the end of the batch.
   overstated three advisory lints, and docs still said "IR manual/minimal example".
   Hidden map ids, registered-graph failure fields and the tool-schema authority are now
   stated precisely; merge/limit/ref tests added. 165 tests; typecheck (skipLibCheck) green.
-- 165 tests; released as v1.5.0 (166 tests now; see 1.6.0).
+- 165 tests; released as v1.5.0 (166 tests now; see 1.6.1).
 
-## 1.6.0 — gallery, benchmark, demo, README (DONE)
+## 1.6.1 — gallery, benchmark, demo, README (DONE)
 - Six copyable GraphSpecs (`research-brief`, `repo-scan`, `pr-review`, `incident-triage`,
   `data-extract`, `approval-plan`), an attractive static gallery with inline topology and
   prompts, and a test that validates every spec.
@@ -236,7 +236,7 @@ explicit request or at the end of the batch.
   screenshot/video, install, 60s quickstart, gallery, benchmark, when not to use,
   reference, trust boundary, compatibility and community.
 - No runtime changes; the npm tarball now includes `gallery`, `bench` and `media`;
-  166 tests; typecheck green. Released as v1.6.0.
+  166 tests; typecheck green. Released as v1.6.1.
 
 ## 0.14.0 — sandboxed graph worker (DEFERRED — not a small version)
 Checked against DSH 0.2.2-rc.5/0.2.3-alpha.2:
