@@ -47,10 +47,6 @@ lower bound. `seconds` is wall time including model calls.
 The 12-topic gate case in the report is Web-only (a headless profile has no answerer); its
 numbers come from the real `lgtest` sessions, not this harness.
 
-The checked-in demo is cropped to the chat area (1160×900). The recorder captures the
-full app, including the sidebar; crop the left sidebar (or hide it) before publishing any
-new recording. `media/raw/` is gitignored and must never be packed into npm.
-
 ## Caveats
 
 One run per cell; one model; one host; the forced graph arms were recorded before the

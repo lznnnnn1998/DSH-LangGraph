@@ -121,7 +121,7 @@ try {
   }
 
   scroller = await findScroller()
-  await caption('A real DSH session · 12 files · a fine map graph · 166 tests')
+  await caption('A real DSH session · 12 files · a fine map graph')
   await wait(2800)
 
   // The prompt and the graph composition.

@@ -10,7 +10,6 @@ No arbitrary model-written JavaScript.
 
 [![npm](https://img.shields.io/npm/v/@lzn1998/dsh-langgraph?style=flat-square&label=npm)](https://www.npmjs.com/package/@lzn1998/dsh-langgraph)
 [![license](https://img.shields.io/badge/license-MIT-263146?style=flat-square)](LICENSE)
-[![tests](https://img.shields.io/badge/tests-166-2f6f4f?style=flat-square)](#reference)
 [![DSH](https://img.shields.io/badge/DSH-0.2.x-7c9cff?style=flat-square)](docs/DETAIL.md)
 [![LangGraph](https://img.shields.io/badge/LangGraph-1.7.x-f0abfc?style=flat-square)](docs/ECOSYSTEM.md)
 
@@ -156,14 +155,9 @@ session-owned, immutable, tool-visible, path-confined and argument-checked. Irre
 steps belong behind a gate. This is the same DSH sandbox, approval scope and storage; the
 plugin adds no privileged execution path.
 
-## Compatibility and tests
+## Compatibility
 
-DSH 0.2.x, LangGraph 1.7.x, Node 24.9+. The local suite has **166 tests** (`npm test`)
-and a `tsc --noEmit --skipLibCheck` check; the benchmark harness is in
-[`bench/run.mjs`](bench/run.mjs). The **1.6.1** release is on npm, and the gallery,
-benchmark report and 57s demo ship with it. The runtime is unchanged from 1.5.0; 1.6.1
-adds the examples, benchmark and documentation. 1.6.1 is the only published version;
-older npm versions were removed and cannot be restored under the same name.
+DSH 0.2.x, LangGraph 1.7.x, Node 24.9+.
 
 ## Community
 

@@ -1,6 +1,6 @@
 # A small DSH benchmark: ordinary loop vs dsh-langgraph graphs
 
-**Date:** 2026-11-27 · **Plugin:** dsh-langgraph 1.5.0 (runtime unchanged in 1.6.1) ·
+**Date:** 2026-11-27 · **Plugin:** dsh-langgraph 1.5.0 ·
 **DSH:** local `deepseek-harness` checkout · **Model:** DeepSeek-V4.1-Flash · **Host:** one
 macOS machine.
 

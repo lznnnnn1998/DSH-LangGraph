@@ -64,6 +64,3 @@ own comparison on a 12-topic brief is intentionally honest: the ordinary loop wa
 3. `compose` it, run it on a small input, and pin the prompt and expected output next to it.
 4. Open a PR with the `.lg.json`, a short README row, and the validated output. No arbitrary
    JS is needed; a graph spec is reviewable data.
-
-`npm test` includes `test/gallery.test.js`, which validates every spec in this folder
-against the tools it should be able to see.
